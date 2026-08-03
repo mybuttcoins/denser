@@ -1182,6 +1182,89 @@ export class TransactionService {
       );
     }, transactionOptions);
   }
+
+  async basecampJoin(interests: string[], transactionOptions: TransactionOptions = {}) {
+    return await this.processHiveAppOperation((builder) => {
+      builder.pushOperation({
+        custom_json_operation: {
+          id: 'basecamp',
+          json: JSON.stringify(['join', { v: 1, interests }]),
+          required_auths: [],
+          required_posting_auths: [this.signerOptions.username]
+        }
+      });
+    }, transactionOptions);
+  }
+
+  async basecampLeave(transactionOptions: TransactionOptions = {}) {
+    return await this.processHiveAppOperation((builder) => {
+      builder.pushOperation({
+        custom_json_operation: {
+          id: 'basecamp',
+          json: JSON.stringify(['leave', { v: 1 }]),
+          required_auths: [],
+          required_posting_auths: [this.signerOptions.username]
+        }
+      });
+    }, transactionOptions);
+  }
+
+  async basecampTaskComplete(task: string, transactionOptions: TransactionOptions = {}) {
+    return await this.processHiveAppOperation((builder) => {
+      builder.pushOperation({
+        custom_json_operation: {
+          id: 'basecamp',
+          json: JSON.stringify(['task', { v: 1, task }]),
+          required_auths: [],
+          required_posting_auths: [this.signerOptions.username]
+        }
+      });
+    }, transactionOptions);
+  }
+
+  async basecampGuideOffer(
+    interests: string[],
+    capacity: number,
+    transactionOptions: TransactionOptions = {}
+  ) {
+    return await this.processHiveAppOperation((builder) => {
+      builder.pushOperation({
+        custom_json_operation: {
+          id: 'basecamp',
+          json: JSON.stringify(['guide_offer', { v: 1, interests, capacity }]),
+          required_auths: [],
+          required_posting_auths: [this.signerOptions.username]
+        }
+      });
+    }, transactionOptions);
+  }
+
+  async basecampGuidePair(account: string, transactionOptions: TransactionOptions = {}) {
+    return await this.processHiveAppOperation((builder) => {
+      builder.pushOperation({
+        custom_json_operation: {
+          id: 'basecamp',
+          json: JSON.stringify(['guide_pair', { v: 1, account }]),
+          required_auths: [],
+          required_posting_auths: [this.signerOptions.username]
+        }
+      });
+    }, transactionOptions);
+  }
+
+  // Reserved for later use — not yet wired to any UI.
+  async basecampVerify(account: string, method: string, transactionOptions: TransactionOptions = {}) {
+    return await this.processHiveAppOperation((builder) => {
+      builder.pushOperation({
+        custom_json_operation: {
+          id: 'basecamp',
+          json: JSON.stringify(['verify', { v: 1, account, method }]),
+          required_auths: [],
+          required_posting_auths: [this.signerOptions.username]
+        }
+      });
+    }, transactionOptions);
+  }
 }
 export const transactionService = new TransactionService();
 

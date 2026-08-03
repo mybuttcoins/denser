@@ -668,5 +668,35 @@
     "hot_posts": "publicaciones populares",
     "trending_posts": "publicaciones de tendencia",
     "muted_posts": "publicaciones silenciadas"
+  },
+  "basecamp": {
+    "title": "Basecamp",
+    "im_new_here": "I'm new here",
+    "im_here_to_help": "I'm here to help",
+    "newcomer_checklist": {
+      "profile_setup": "Set up your profile",
+      "first_follow": "Follow five people",
+      "intro_post": "Write an introduction post",
+      "first_replies": "Reply to three posts",
+      "key_backup": "Back up your keys",
+      "wallet_tour": "Learn the wallet"
+    },
+    "newcomers_list": {
+      "no_results": "No newcomers found right now. Check back soon!",
+      "days_old": "{{count}} days old"
+    },
+    "guide_signup": {
+      "heading": "Offer to guide a newcomer",
+      "interests_placeholder": "Interests, comma separated (e.g. gaming, art, writing)",
+      "capacity_label": "How many newcomers can you guide?",
+      "submit": "Offer to guide",
+      "already_guide": "You're signed up as a guide with room for {{capacity}} newcomers."
+    },
+    "toast": {
+      "task_complete_title": "Task complete",
+      "task_complete_description": "Nice work — your progress has been recorded.",
+      "guide_offer_title": "Guide offer sent",
+      "guide_offer_description": "Thanks for offering to help — we'll pair you with a newcomer soon."
+    }
   }
 }
