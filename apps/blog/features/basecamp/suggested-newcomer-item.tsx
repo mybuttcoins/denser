@@ -5,36 +5,32 @@ import { Link, accountReputation } from '@hive/ui';
 import { getUserAvatarUrl } from '@ui/lib/avatar-utils';
 import TimeAgo from '@ui/components/time-ago';
 import { useTranslation } from '@/blog/i18n/client';
-import PostCardCommentTooltip from '@/blog/features/list-of-posts/post-card-comment-tooltip';
 import type { Newcomer } from './hooks/use-newcomers';
+import FollowNewcomerButton from './follow-newcomer-button';
 
-const NewcomersListItem = ({ post, accountAgeDays }: Newcomer) => {
+const SuggestedNewcomerItem = ({ post, accountAgeDays }: Newcomer) => {
   const { t } = useTranslation('common_blog');
   return (
     <li>
       <Card
-        className="my-4 flex items-center gap-3 bg-background p-4 text-primary"
-        data-testid="newcomer-list-item"
+        className="my-2 flex items-center gap-3 bg-background p-3"
+        data-testid="suggested-newcomer-item"
       >
-        <Link href={`/@${post.author}`} data-testid="newcomer-avatar">
+        <Link href={`/@${post.author}`} data-testid="suggested-newcomer-avatar">
           <div
-            className="h-12 w-12 shrink-0 rounded-full bg-cover bg-no-repeat"
+            className="h-10 w-10 shrink-0 rounded-full bg-cover bg-no-repeat"
             style={{ backgroundImage: `url(${getUserAvatarUrl(post.author, 'small')})` }}
           />
         </Link>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-x-2 text-sm">
-            <Link
-              href={`/@${post.author}`}
-              className="font-medium hover:text-destructive"
-              data-testid="newcomer-username"
-            >
+            <Link href={`/@${post.author}`} className="font-medium hover:text-destructive">
               {post.author}
             </Link>
-            <span className="text-primary/60" data-testid="newcomer-reputation">
+            <span className="text-primary/60" data-testid="suggested-newcomer-reputation">
               ({accountReputation(post.author_reputation)})
             </span>
-            <span className="text-primary/60" data-testid="newcomer-account-age">
+            <span className="text-primary/60">
               {t('basecamp.newcomers_list.days_old', { count: accountAgeDays })}
             </span>
             <span className="text-primary/60">
@@ -43,19 +39,15 @@ const NewcomersListItem = ({ post, accountAgeDays }: Newcomer) => {
           </div>
           <Link
             href={`/${post.category}/@${post.author}/${post.permlink}`}
-            className="line-clamp-1 font-medium hover:text-destructive"
-            data-testid="newcomer-post-title"
+            className="line-clamp-1 block text-sm text-primary/70 hover:text-destructive"
           >
             {post.title}
           </Link>
         </div>
-        <PostCardCommentTooltip
-          comments={post.children}
-          url={`/${post.category}/@${post.author}/${post.permlink}/#comments`}
-        />
+        <FollowNewcomerButton username={post.author} />
       </Card>
     </li>
   );
 };
 
-export default NewcomersListItem;
+export default SuggestedNewcomerItem;

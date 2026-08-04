@@ -18,7 +18,7 @@ export function basecampRecordsQueryKey(username: string) {
  * hafah-api, then reads that account's custom_json history via hivemind-api,
  * matching the pattern apps/wallet/lib/hive.ts uses for other operation types.
  */
-async function fetchBasecampRecords(username: string): Promise<BasecampRecord[]> {
+export async function fetchBasecampRecords(username: string): Promise<BasecampRecord[]> {
   const chain = await getChain();
   const opTypes = await chain.restApi['hafah-api']['operation-types']();
   const opTypeId = opTypes.find((opType) => opType.operation_name === CUSTOM_JSON_OPERATION_NAME)?.op_type_id;

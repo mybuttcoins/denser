@@ -10,6 +10,53 @@ import { basecampRecordsQueryKey } from './use-basecamp-state';
 import { BASECAMP_SCHEMA_VERSION, type BasecampRecord, type BasecampTaskId } from '../lib/protocol';
 
 /**
+ * Joins Basecamp with the given interests. Optimistically appends the record
+ * to the cached history so the "joined" state updates immediately, then
+ * invalidates to reconcile with the real on-chain record.
+ */
+export function useBasecampJoinMutation() {
+  const { user } = useUserClient();
+  const { t } = useTranslation('common_blog');
+  const queryClient = useQueryClient();
+  const queryKey = basecampRecordsQueryKey(user.username);
+
+  return useMutation({
+    mutationFn: async (params: { interests: string[] }) => {
+      const broadcastResult = await transactionService.basecampJoin(params.interests, { observe: true });
+      return { ...params, broadcastResult };
+    },
+    onMutate: async (params) => {
+      await queryClient.cancelQueries({ queryKey });
+      const prevRecords: BasecampRecord[] | undefined = queryClient.getQueryData(queryKey);
+      const optimisticRecord: BasecampRecord = {
+        timestamp: new Date().toISOString(),
+        account: user.username,
+        action: 'join',
+        payload: { v: BASECAMP_SCHEMA_VERSION, interests: params.interests }
+      };
+      queryClient.setQueryData<BasecampRecord[]>(queryKey, [...(prevRecords ?? []), optimisticRecord]);
+      return { prevRecords };
+    },
+    onError: (error, variables, context) => {
+      queryClient.setQueryData(queryKey, context?.prevRecords ?? []);
+      handleError(error, { method: 'useBasecampJoinMutation', params: variables });
+    },
+    onSuccess: () => {
+      toast({
+        title: t('basecamp.toast.join_title'),
+        description: t('basecamp.toast.join_description'),
+        variant: 'success'
+      });
+    },
+    onSettled: () => {
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey });
+      }, 4000);
+    }
+  });
+}
+
+/**
  * Marks a Basecamp task as complete. Optimistically appends the record to
  * the cached history so the checklist updates immediately, then invalidates
  * to pick up the real on-chain record once it's indexed.

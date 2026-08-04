@@ -58,6 +58,7 @@
       "proposals": "Proposals",
       "witnesses": "Témoins",
       "out_dapps": "Our dApps",
+      "basecamp": "Basecamp",
       "login": "Se connecter",
       "sign_up": "S'inscrire",
       "search": "Rechercher...",
@@ -685,18 +686,53 @@
       "no_results": "No newcomers found right now. Check back soon!",
       "days_old": "{{count}} days old"
     },
-    "guide_signup": {
-      "heading": "Offer to guide a newcomer",
-      "interests_placeholder": "Interests, comma separated (e.g. gaming, art, writing)",
-      "capacity_label": "How many newcomers can you guide?",
-      "submit": "Offer to guide",
-      "already_guide": "You're signed up as a guide with room for {{capacity}} newcomers."
-    },
     "toast": {
       "task_complete_title": "Task complete",
       "task_complete_description": "Nice work — your progress has been recorded.",
       "guide_offer_title": "Guide offer sent",
-      "guide_offer_description": "Thanks for offering to help — we'll pair you with a newcomer soon."
+      "guide_offer_description": "Thanks for offering to help — we'll pair you with a newcomer soon.",
+      "join_title": "Joined Basecamp",
+      "join_description": "Your interests have been recorded."
+    },
+    "new_here": {
+      "my_checklist_button": "Newcomer checklist"
+    },
+    "interest_picker": {
+      "heading": "What are you interested in? Pick up to 5.",
+      "confirm": "Confirm interests",
+      "already_joined": "You are in! Your interests: {{interests}}",
+      "interests": {
+        "photography": "Photography",
+        "gaming": "Gaming",
+        "food": "Food",
+        "art": "Art",
+        "music": "Music",
+        "travel": "Travel",
+        "writing": "Writing",
+        "nature": "Nature",
+        "crypto": "Crypto",
+        "diy": "DIY",
+        "fitness": "Fitness",
+        "books": "Books"
+      }
+    },
+    "help_view": {
+      "offer_to_guide": "Offer to guide a newcomer",
+      "im_here_to_browse": "I'm here to browse"
+    },
+    "guide_offer_flow": {
+      "heading": "Pick up to 5 interests you can guide newcomers on",
+      "confirm": "Confirm"
+    },
+    "suggested_newcomers": {
+      "heading": "Suggested newcomers for you",
+      "no_matches_fallback": "No interest matches yet — newest arrivals."
+    },
+    "support_flow": {
+      "low_support": "Low support",
+      "low_interaction": "Low interaction",
+      "vote_on_this_post": "Vote on this post",
+      "comment_on_this_post": "Comment on this post"
     }
   }
 }

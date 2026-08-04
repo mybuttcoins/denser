@@ -28,6 +28,43 @@ export function isBasecampTaskId(value: unknown): value is BasecampTaskId {
   return typeof value === 'string' && (BASECAMP_TASK_IDS as readonly string[]).includes(value);
 }
 
+// Fixed interest vocabulary used by both `join` (newcomer) and `guide_offer` (guide)
+// records — no broader interest taxonomy exists elsewhere in this codebase to reuse.
+export type BasecampInterest =
+  | 'photography'
+  | 'gaming'
+  | 'food'
+  | 'art'
+  | 'music'
+  | 'travel'
+  | 'writing'
+  | 'nature'
+  | 'crypto'
+  | 'diy'
+  | 'fitness'
+  | 'books';
+
+export const BASECAMP_INTERESTS: readonly BasecampInterest[] = [
+  'photography',
+  'gaming',
+  'food',
+  'art',
+  'music',
+  'travel',
+  'writing',
+  'nature',
+  'crypto',
+  'diy',
+  'fitness',
+  'books'
+];
+
+export const MAX_BASECAMP_INTERESTS = 5;
+
+export function isBasecampInterest(value: unknown): value is BasecampInterest {
+  return typeof value === 'string' && (BASECAMP_INTERESTS as readonly string[]).includes(value);
+}
+
 export type BasecampAction = 'join' | 'leave' | 'task' | 'guide_offer' | 'guide_pair' | 'verify';
 
 const BASECAMP_ACTIONS: readonly BasecampAction[] = [
