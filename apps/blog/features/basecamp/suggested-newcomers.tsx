@@ -2,7 +2,9 @@
 
 import { useMemo } from 'react';
 import { Skeleton } from '@hive/ui';
+import { cn } from '@ui/lib/utils';
 import { useTranslation } from '@/blog/i18n/client';
+import { BASECAMP_MUTED, BASECAMP_SKELETON } from './lib/theme';
 import { useNewcomers } from './hooks/use-newcomers';
 import { useSuggestedNewcomerMatches } from './hooks/use-suggested-newcomer-matches';
 import SuggestedNewcomerItem from './suggested-newcomer-item';
@@ -23,7 +25,7 @@ const SuggestedNewcomers = ({ guideInterests }: { guideInterests: BasecampIntere
     return (
       <div className="my-4" data-testid="suggested-newcomers-skeleton">
         {Array.from({ length: 3 }).map((_, i) => (
-          <Skeleton key={i} className="my-2 h-16 w-full rounded-lg" />
+          <Skeleton key={i} className={cn(BASECAMP_SKELETON, 'my-2 h-16 w-full rounded-xl')} />
         ))}
       </div>
     );
@@ -34,9 +36,9 @@ const SuggestedNewcomers = ({ guideInterests }: { guideInterests: BasecampIntere
 
   return (
     <div className="my-4" data-testid="suggested-newcomers">
-      <span className="text-sm font-medium">{t('basecamp.suggested_newcomers.heading')}</span>
+      <span className="text-sm font-semibold">{t('basecamp.suggested_newcomers.heading')}</span>
       {showFallback ? (
-        <p className="mt-1 text-sm text-primary/60" data-testid="suggested-newcomers-fallback-label">
+        <p className={cn(BASECAMP_MUTED, 'mt-1 text-sm')} data-testid="suggested-newcomers-fallback-label">
           {t('basecamp.suggested_newcomers.no_matches_fallback')}
         </p>
       ) : null}

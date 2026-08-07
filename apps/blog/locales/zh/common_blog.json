@@ -680,11 +680,13 @@
       "intro_post": "Write an introduction post",
       "first_replies": "Reply to three posts",
       "key_backup": "Back up your keys",
-      "wallet_tour": "Learn the wallet"
+      "wallet_tour": "Learn the wallet",
+      "heading": "你的清单"
     },
     "newcomers_list": {
       "no_results": "No newcomers found right now. Check back soon!",
-      "days_old": "{{count}} days old"
+      "days_old": "{{count}} days old",
+      "heading": "最新加入"
     },
     "toast": {
       "task_complete_title": "Task complete",
@@ -718,7 +720,8 @@
     },
     "help_view": {
       "offer_to_guide": "Offer to guide a newcomer",
-      "im_here_to_browse": "I'm here to browse"
+      "im_here_to_browse": "I'm here to browse",
+      "puppet_patrol_games": "Puppet Patrol 游戏"
     },
     "guide_offer_flow": {
       "heading": "Pick up to 5 interests you can guide newcomers on",
@@ -733,6 +736,26 @@
       "low_interaction": "Low interaction",
       "vote_on_this_post": "Vote on this post",
       "comment_on_this_post": "Comment on this post"
+    },
+    "subtitle": "新的 Hive 账号在这里落脚。打个招呼，搭把手，帮他们留下来。",
+    "rings": {
+      "summary": "加入 Hive {{days}} 天 · 每天 {{votes}} 次投票、{{comments}} 条评论 · 已完成 {{done}}/{{total}} 项任务",
+      "progress": "已完成 {{done}}/{{total}}",
+      "legend_age": "账号年龄",
+      "legend_activity": "每日活跃度",
+      "legend_checklist": "任务清单",
+      "summary_activity_unknown": "加入 Hive {{days}} 天 · 活跃度尚未统计 · 已完成 {{done}}/{{total}} 项任务"
+    },
+    "games": {
+      "heading": "Puppet Patrol 游戏",
+      "subheading": "选择一个游戏开始。",
+      "coming_soon": "游戏即将推出",
+      "titles": {
+        "bugger": "Bugger",
+        "cut_the_strings": "Cut the Strings",
+        "sock_or_not": "Sock or Not",
+        "spot_the_bot": "Spot the Bot"
+      }
     }
   }
 }

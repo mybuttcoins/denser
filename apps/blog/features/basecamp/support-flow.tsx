@@ -2,7 +2,9 @@
 
 import { useMemo, useState } from 'react';
 import { Button } from '@hive/ui';
+import { cn } from '@ui/lib/utils';
 import { useTranslation } from '@/blog/i18n/client';
+import { accentButton } from './lib/theme';
 import { useNewcomers, type Newcomer } from './hooks/use-newcomers';
 import SupportListItem from './support-list-item';
 
@@ -41,6 +43,7 @@ const SupportFlow = () => {
         <Button
           variant={filter === 'low_support' ? 'default' : 'outline'}
           size="sm"
+          className={cn(accentButton('amber', filter === 'low_support'))}
           onClick={() => setFilter((prev) => (prev === 'low_support' ? null : 'low_support'))}
           data-testid="support-filter-low-support"
         >
@@ -49,6 +52,7 @@ const SupportFlow = () => {
         <Button
           variant={filter === 'low_interaction' ? 'default' : 'outline'}
           size="sm"
+          className={cn(accentButton('cyan', filter === 'low_interaction'))}
           onClick={() => setFilter((prev) => (prev === 'low_interaction' ? null : 'low_interaction'))}
           data-testid="support-filter-low-interaction"
         >

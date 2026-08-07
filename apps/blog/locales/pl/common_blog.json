@@ -685,11 +685,13 @@
       "intro_post": "Write an introduction post",
       "first_replies": "Reply to three posts",
       "key_backup": "Back up your keys",
-      "wallet_tour": "Learn the wallet"
+      "wallet_tour": "Learn the wallet",
+      "heading": "Twoja lista zadań"
     },
     "newcomers_list": {
       "no_results": "No newcomers found right now. Check back soon!",
-      "days_old": "{{count}} days old"
+      "days_old": "{{count}} days old",
+      "heading": "Ostatnio dołączyli"
     },
     "toast": {
       "task_complete_title": "Task complete",
@@ -723,7 +725,8 @@
     },
     "help_view": {
       "offer_to_guide": "Offer to guide a newcomer",
-      "im_here_to_browse": "I'm here to browse"
+      "im_here_to_browse": "I'm here to browse",
+      "puppet_patrol_games": "Gry Puppet Patrol"
     },
     "guide_offer_flow": {
       "heading": "Pick up to 5 interests you can guide newcomers on",
@@ -738,6 +741,26 @@
       "low_interaction": "Low interaction",
       "vote_on_this_post": "Vote on this post",
       "comment_on_this_post": "Comment on this post"
+    },
+    "subtitle": "Tu lądują nowe konta Hive. Przywitaj się, pomóż i spraw, by zostali.",
+    "rings": {
+      "summary": "{{days}} dni na Hive · {{votes}} głosów i {{comments}} komentarzy dziennie · {{done}}/{{total}} zadań ukończonych",
+      "progress": "{{done}}/{{total}} ukończonych",
+      "legend_age": "Wiek konta",
+      "legend_activity": "Dzienna aktywność",
+      "legend_checklist": "Lista zadań",
+      "summary_activity_unknown": "{{days}} dni na Hive · aktywność jeszcze niezmierzona · {{done}}/{{total}} zadań ukończonych"
+    },
+    "games": {
+      "heading": "Gry Puppet Patrol",
+      "subheading": "Wybierz grę.",
+      "coming_soon": "Gra wkrótce",
+      "titles": {
+        "bugger": "Bugger",
+        "cut_the_strings": "Cut the Strings",
+        "sock_or_not": "Sock or Not",
+        "spot_the_bot": "Spot the Bot"
+      }
     }
   }
 }

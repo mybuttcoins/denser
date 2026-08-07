@@ -686,11 +686,13 @@
       "intro_post": "Write an introduction post",
       "first_replies": "Reply to three posts",
       "key_backup": "Back up your keys",
-      "wallet_tour": "Learn the wallet"
+      "wallet_tour": "Learn the wallet",
+      "heading": "Ваш список задач"
     },
     "newcomers_list": {
       "no_results": "No newcomers found right now. Check back soon!",
-      "days_old": "{{count}} days old"
+      "days_old": "{{count}} days old",
+      "heading": "Недавно присоединились"
     },
     "toast": {
       "task_complete_title": "Task complete",
@@ -724,7 +726,8 @@
     },
     "help_view": {
       "offer_to_guide": "Offer to guide a newcomer",
-      "im_here_to_browse": "I'm here to browse"
+      "im_here_to_browse": "I'm here to browse",
+      "puppet_patrol_games": "Игры Puppet Patrol"
     },
     "guide_offer_flow": {
       "heading": "Pick up to 5 interests you can guide newcomers on",
@@ -739,6 +742,26 @@
       "low_interaction": "Low interaction",
       "vote_on_this_post": "Vote on this post",
       "comment_on_this_post": "Comment on this post"
+    },
+    "subtitle": "Здесь появляются новые аккаунты Hive. Поздоровайтесь, помогите им освоиться и остаться.",
+    "rings": {
+      "summary": "{{days}} дней на Hive · {{votes}} голосов и {{comments}} комментариев в день · {{done}}/{{total}} задач выполнено",
+      "progress": "{{done}}/{{total}} выполнено",
+      "legend_age": "Возраст аккаунта",
+      "legend_activity": "Ежедневная активность",
+      "legend_checklist": "Список задач",
+      "summary_activity_unknown": "{{days}} дней на Hive · активность ещё не измерена · {{done}}/{{total}} задач выполнено"
+    },
+    "games": {
+      "heading": "Игры Puppet Patrol",
+      "subheading": "Выберите игру.",
+      "coming_soon": "Игра скоро появится",
+      "titles": {
+        "bugger": "Bugger",
+        "cut_the_strings": "Cut the Strings",
+        "sock_or_not": "Sock or Not",
+        "spot_the_bot": "Spot the Bot"
+      }
     }
   }
 }

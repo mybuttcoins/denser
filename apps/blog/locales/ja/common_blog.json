@@ -680,11 +680,13 @@
       "intro_post": "Write an introduction post",
       "first_replies": "Reply to three posts",
       "key_backup": "Back up your keys",
-      "wallet_tour": "Learn the wallet"
+      "wallet_tour": "Learn the wallet",
+      "heading": "チェックリスト"
     },
     "newcomers_list": {
       "no_results": "No newcomers found right now. Check back soon!",
-      "days_old": "{{count}} days old"
+      "days_old": "{{count}} days old",
+      "heading": "最近の参加者"
     },
     "toast": {
       "task_complete_title": "Task complete",
@@ -718,7 +720,8 @@
     },
     "help_view": {
       "offer_to_guide": "Offer to guide a newcomer",
-      "im_here_to_browse": "I'm here to browse"
+      "im_here_to_browse": "I'm here to browse",
+      "puppet_patrol_games": "パペットパトロール ゲーム"
     },
     "guide_offer_flow": {
       "heading": "Pick up to 5 interests you can guide newcomers on",
@@ -733,6 +736,26 @@
       "low_interaction": "Low interaction",
       "vote_on_this_post": "Vote on this post",
       "comment_on_this_post": "Comment on this post"
+    },
+    "subtitle": "Hive の新しいアカウントが最初に集まる場所です。声をかけ、手を貸し、定着を後押ししましょう。",
+    "rings": {
+      "summary": "Hive 歴 {{days}} 日 · 1日あたり {{votes}} 票、{{comments}} 件のコメント · タスク {{done}}/{{total}} 完了",
+      "progress": "{{done}}/{{total}} 完了",
+      "legend_age": "アカウント歴",
+      "legend_activity": "日々の活動",
+      "legend_checklist": "チェックリスト",
+      "summary_activity_unknown": "Hive 歴 {{days}} 日 · 活動量は未計測 · タスク {{done}}/{{total}} 完了"
+    },
+    "games": {
+      "heading": "パペットパトロール ゲーム",
+      "subheading": "遊ぶゲームを選んでください。",
+      "coming_soon": "ゲームは近日公開",
+      "titles": {
+        "bugger": "Bugger",
+        "cut_the_strings": "Cut the Strings",
+        "sock_or_not": "Sock or Not",
+        "spot_the_bot": "Spot the Bot"
+      }
     }
   }
 }

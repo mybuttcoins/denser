@@ -1,9 +1,11 @@
 'use client';
 
 import { Button } from '@hive/ui';
+import { cn } from '@ui/lib/utils';
 import { useTranslation } from '@/blog/i18n/client';
 import { useUserClient } from '@smart-signer/lib/auth/use-user-client';
 import { useVoteMutation } from '@/blog/features/votes/hooks/use-vote-mutation';
+import { accentButton } from './lib/theme';
 
 const VoteOnPostButton = ({ author, permlink }: { author: string; permlink: string }) => {
   const { t } = useTranslation('common_blog');
@@ -14,6 +16,7 @@ const VoteOnPostButton = ({ author, permlink }: { author: string; permlink: stri
     <Button
       variant="outline"
       size="sm"
+      className={cn(accentButton('rose', true), 'whitespace-nowrap')}
       disabled={voteMutation.isLoading}
       onClick={() => voteMutation.mutate({ voter: user.username, author, permlink, weight: 10000 })}
       data-testid="vote-on-post-button"

@@ -680,11 +680,13 @@
       "intro_post": "Write an introduction post",
       "first_replies": "Reply to three posts",
       "key_backup": "Back up your keys",
-      "wallet_tour": "Learn the wallet"
+      "wallet_tour": "Learn the wallet",
+      "heading": "Tu lista de tareas"
     },
     "newcomers_list": {
       "no_results": "No newcomers found right now. Check back soon!",
-      "days_old": "{{count}} days old"
+      "days_old": "{{count}} days old",
+      "heading": "Recién llegados"
     },
     "toast": {
       "task_complete_title": "Task complete",
@@ -718,7 +720,8 @@
     },
     "help_view": {
       "offer_to_guide": "Offer to guide a newcomer",
-      "im_here_to_browse": "I'm here to browse"
+      "im_here_to_browse": "I'm here to browse",
+      "puppet_patrol_games": "Juegos de Puppet Patrol"
     },
     "guide_offer_flow": {
       "heading": "Pick up to 5 interests you can guide newcomers on",
@@ -733,6 +736,26 @@
       "low_interaction": "Low interaction",
       "vote_on_this_post": "Vote on this post",
       "comment_on_this_post": "Comment on this post"
+    },
+    "subtitle": "Donde aterrizan las cuentas nuevas de Hive. Salúdalas, échales una mano y ayúdalas a quedarse.",
+    "rings": {
+      "summary": "{{days}} días en Hive · {{votes}} votos y {{comments}} comentarios por día · {{done}}/{{total}} tareas completadas",
+      "progress": "{{done}}/{{total}} completadas",
+      "legend_age": "Antigüedad de la cuenta",
+      "legend_activity": "Actividad diaria",
+      "legend_checklist": "Lista de tareas",
+      "summary_activity_unknown": "{{days}} días en Hive · actividad aún no medida · {{done}}/{{total}} tareas completadas"
+    },
+    "games": {
+      "heading": "Juegos de Puppet Patrol",
+      "subheading": "Elige un juego para jugar.",
+      "coming_soon": "Juego próximamente",
+      "titles": {
+        "bugger": "Bugger",
+        "cut_the_strings": "Cut the Strings",
+        "sock_or_not": "Sock or Not",
+        "spot_the_bot": "Spot the Bot"
+      }
     }
   }
 }

@@ -782,11 +782,13 @@
       "intro_post": "Write an introduction post",
       "first_replies": "Reply to three posts",
       "key_backup": "Back up your keys",
-      "wallet_tour": "Learn the wallet"
+      "wallet_tour": "Learn the wallet",
+      "heading": "Your checklist"
     },
     "newcomers_list": {
       "no_results": "No newcomers found right now. Check back soon!",
-      "days_old": "{{count}} days old"
+      "days_old": "{{count}} days old",
+      "heading": "Recent arrivals"
     },
     "toast": {
       "task_complete_title": "Task complete",
@@ -820,7 +822,8 @@
     },
     "help_view": {
       "offer_to_guide": "Offer to guide a newcomer",
-      "im_here_to_browse": "I'm here to browse"
+      "im_here_to_browse": "I'm here to browse",
+      "puppet_patrol_games": "Puppet Patrol Games"
     },
     "guide_offer_flow": {
       "heading": "Pick up to 5 interests you can guide newcomers on",
@@ -835,6 +838,26 @@
       "low_interaction": "Low interaction",
       "vote_on_this_post": "Vote on this post",
       "comment_on_this_post": "Comment on this post"
+    },
+    "subtitle": "Where new Hive accounts land. Say hello, lend a hand, help them stay.",
+    "rings": {
+      "summary": "{{days}} days on Hive · {{votes}} votes and {{comments}} comments per day · {{done}}/{{total}} tasks done",
+      "progress": "{{done}}/{{total}} done",
+      "legend_age": "Account age",
+      "legend_activity": "Daily activity",
+      "legend_checklist": "Checklist",
+      "summary_activity_unknown": "{{days}} days on Hive · activity not measured yet · {{done}}/{{total}} tasks done"
+    },
+    "games": {
+      "heading": "Puppet Patrol Games",
+      "subheading": "Pick a game to play.",
+      "coming_soon": "Game coming soon",
+      "titles": {
+        "bugger": "Bugger",
+        "cut_the_strings": "Cut the Strings",
+        "sock_or_not": "Sock or Not",
+        "spot_the_bot": "Spot the Bot"
+      }
     }
   }
 }

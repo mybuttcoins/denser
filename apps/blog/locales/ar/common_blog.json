@@ -727,11 +727,13 @@
       "intro_post": "Write an introduction post",
       "first_replies": "Reply to three posts",
       "key_backup": "Back up your keys",
-      "wallet_tour": "Learn the wallet"
+      "wallet_tour": "Learn the wallet",
+      "heading": "قائمة مهامك"
     },
     "newcomers_list": {
       "no_results": "No newcomers found right now. Check back soon!",
-      "days_old": "{{count}} days old"
+      "days_old": "{{count}} days old",
+      "heading": "الوافدون الجدد"
     },
     "toast": {
       "task_complete_title": "Task complete",
@@ -765,7 +767,8 @@
     },
     "help_view": {
       "offer_to_guide": "Offer to guide a newcomer",
-      "im_here_to_browse": "I'm here to browse"
+      "im_here_to_browse": "I'm here to browse",
+      "puppet_patrol_games": "ألعاب Puppet Patrol"
     },
     "guide_offer_flow": {
       "heading": "Pick up to 5 interests you can guide newcomers on",
@@ -780,6 +783,26 @@
       "low_interaction": "Low interaction",
       "vote_on_this_post": "Vote on this post",
       "comment_on_this_post": "Comment on this post"
+    },
+    "subtitle": "حيث تحطّ حسابات Hive الجديدة. رحّب بهم، ومدّ يد العون، وساعدهم على البقاء.",
+    "rings": {
+      "summary": "{{days}} يومًا على Hive · {{votes}} تصويتًا و{{comments}} تعليقًا يوميًا · اكتمل {{done}}/{{total}} من المهام",
+      "progress": "اكتمل {{done}}/{{total}}",
+      "legend_age": "عمر الحساب",
+      "legend_activity": "النشاط اليومي",
+      "legend_checklist": "قائمة المهام",
+      "summary_activity_unknown": "{{days}} يومًا على Hive · لم يُقس النشاط بعد · اكتمل {{done}}/{{total}} من المهام"
+    },
+    "games": {
+      "heading": "ألعاب Puppet Patrol",
+      "subheading": "اختر لعبة للعب.",
+      "coming_soon": "اللعبة قريبًا",
+      "titles": {
+        "bugger": "Bugger",
+        "cut_the_strings": "Cut the Strings",
+        "sock_or_not": "Sock or Not",
+        "spot_the_bot": "Spot the Bot"
+      }
     }
   }
 }

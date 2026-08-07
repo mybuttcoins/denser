@@ -2,9 +2,11 @@
 
 import { useState } from 'react';
 import { Button } from '@hive/ui';
+import { cn } from '@ui/lib/utils';
 import { useTranslation } from '@/blog/i18n/client';
 import NewcomerChecklist from './newcomer-checklist';
 import JoinInterests from './join-interests';
+import { accentButton } from './lib/theme';
 
 const NewHereView = () => {
   const { t } = useTranslation('common_blog');
@@ -16,6 +18,7 @@ const NewHereView = () => {
         <Button
           variant="outline"
           size="sm"
+          className={cn(accentButton('cyan', showChecklist))}
           onClick={() => setShowChecklist((prev) => !prev)}
           data-testid="my-checklist-button"
         >
