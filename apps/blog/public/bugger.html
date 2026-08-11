@@ -1,0 +1,614 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>BUGGER — matrix crossing</title>
+<style>
+  :root{ --ink:#3f8a63; --pale:#b9ffd9; --hive:#e31337; }
+  *{box-sizing:border-box}
+  body{
+    margin:0; min-height:100vh; background:#010204; color:var(--ink);
+    font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:8px; padding:10px; overflow:hidden;
+    -webkit-user-select:none; user-select:none; -webkit-tap-highlight-color:transparent;
+  }
+  header{width:min(100%,470px)}
+  h1{font-size:15px; font-weight:700; letter-spacing:.42em; text-transform:uppercase; margin:0; color:var(--pale)}
+  h1 span{font-size:11px; letter-spacing:.28em; color:#17583a; font-weight:400}
+  .hud{width:min(100%,470px); display:grid; grid-template-columns:repeat(5,1fr); gap:4px;
+       font-size:8px; letter-spacing:.13em; text-transform:uppercase}
+  .hud div{background:#04100b; border:1px solid #0b2418; padding:4px 6px; border-radius:3px; transition:color .2s,border-color .2s,background .2s}
+  .hud b{display:block; font-size:14px; letter-spacing:.03em; color:var(--pale); font-weight:600; margin-top:1px}
+  .hud .warn{border-color:#5a1620; background:#150507}
+  .hud .warn b{color:#ff5a6a}
+  .stage{position:relative; width:min(100%,470px); aspect-ratio:6/7; max-height:66vh}
+  canvas{width:100%; height:100%; display:block; border:1px solid #0b2418; border-radius:4px; background:#010204}
+  .overlay{position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;
+           gap:12px; text-align:center; padding:24px; background:rgba(1,2,4,.93); border-radius:4px}
+  .overlay[hidden]{display:none}
+  .overlay h2{margin:0; font-size:16px; letter-spacing:.2em; text-transform:uppercase; color:var(--pale)}
+  .overlay p{margin:0; font-size:12px; line-height:1.75; max-width:32ch}
+  .overlay em{color:var(--pale); font-style:normal}
+  .overlay .hint{font-size:10px; letter-spacing:.14em; opacity:.55}
+  button{font:inherit; font-size:11px; letter-spacing:.16em; text-transform:uppercase;
+         color:#010204; background:var(--pale); border:0; border-radius:3px; padding:10px 18px; cursor:pointer}
+  button:focus-visible{outline:2px solid var(--hive); outline-offset:2px}
+  .ghost{background:transparent; color:var(--ink); border:1px solid #0f2c1e; padding:7px 9px; font-size:10px}
+  .levels{display:flex; gap:6px}
+  .levels[hidden]{display:none}
+  .levels button{background:#04100b; color:var(--ink); border:1px solid #0f2c1e; border-radius:3px;
+                 width:36px; padding:9px 0; font-size:13px; letter-spacing:0}
+  .levels button.unlocked{color:var(--pale); border-color:#1f6b45}
+  .levels button:active{background:#0c2016; color:var(--pale)}
+  .bar{width:min(100%,470px); display:flex; gap:4px}
+  .bar button{flex:1}
+  .pad{width:min(100%,470px); display:grid; grid-template-columns:repeat(3,1fr); gap:4px}
+  .pad button{background:#04100b; color:var(--ink); border:1px solid #0b2418; font-size:14px; padding:11px 0}
+  .pad button:active{background:#0c2016; color:var(--pale)}
+  .pad .wide{grid-column:1/-1}
+  input[type=file]{display:none}
+  @media (min-width:760px){ .pad{display:none} }
+</style>
+
+<header><h1>Bugger <span>// matrix crossing</span></h1></header>
+
+<div class="hud">
+  <div>Level<b id="lvl">1</b></div>
+  <div>Bays<b id="bays">0/5</b></div>
+  <div id="timecell">Time<b id="time">20</b></div>
+  <div>Score<b id="score">0</b></div>
+  <div>Lives<b id="lives">3</b></div>
+</div>
+
+<div class="stage">
+  <canvas id="cv"></canvas>
+  <div class="overlay" id="ov">
+    <h2 id="ovt">Read the rain</h2>
+    <p id="ovp">Thirteen lanes, then bank in one of five bays on the far wall. Only <em>0</em> and <em>1</em> hold your weight — and <em>20 seconds</em> a crossing.<br><br>Shivering cells are unstable: safe one instant, gone the next.</p>
+    <div class="levels" id="levels">
+      <button data-l="1">1</button>
+      <button data-l="2">2</button>
+      <button data-l="3">3</button>
+      <button data-l="4">4</button>
+      <button data-l="5">5</button>
+    </div>
+    <button id="go">Start</button>
+    <p class="hint">Arrow keys or WASD · swipe on touch · jump to any level</p>
+  </div>
+</div>
+
+<div class="bar">
+  <button class="ghost" id="pause">Pause</button>
+  <button class="ghost" id="assist">Assist: auto</button>
+  <button class="ghost" id="mute">Sound on</button>
+</div>
+<input type="file" id="file" accept="image/*">
+
+<div class="pad">
+  <button data-d="up" class="wide">▲</button>
+  <button data-d="left">◀</button>
+  <button data-d="down">▼</button>
+  <button data-d="right">▶</button>
+</div>
+
+<script>
+(() => {
+"use strict";
+
+const ROWS = 22, LANES = 13, COLS = LANES + 2;
+const $ = id => document.getElementById(id);
+const cv = $('cv'), ctx = cv.getContext('2d'), ov = $('ov'), ovt = $('ovt'), ovp = $('ovp');
+
+/* Bugger Bays: the right wall opens only at these five rows. */
+const BAY_ROWS = [2, 7, 11, 15, 20];
+
+/* Five hand-tuned levels — all selectable, none gated. speed / density / glitch. */
+const LEVELS = [
+  { speed: 0.82, density: 0.56, glitch: 0.000 },
+  { speed: 1.06, density: 0.50, glitch: 0.045 },
+  { speed: 1.32, density: 0.44, glitch: 0.075 },
+  { speed: 1.58, density: 0.38, glitch: 0.105 },
+  { speed: 1.88, density: 0.32, glitch: 0.140 }
+];
+const CROSS_TIME = 20;          // seconds on the clock per crossing
+const GLITCH_PERIOD = 0.6;      // a glitch cell flips safe<->hostile this often
+
+/* ---------- the Hive isotype, built as geometry ----------
+   regular hexagon, pointy left and right, with two chevron cuts
+   punched out to form the H. measured off the brand asset.        */
+let hexSprite = null;
+function buildHex(px){
+  const c = document.createElement('canvas'); c.width = c.height = px;
+  const g = c.getContext('2d');
+  const R = px*0.47, cx = px/2, cy = px/2;
+  g.beginPath();
+  for (let i=0;i<6;i++){
+    const a = i*Math.PI/3, x = cx+Math.cos(a)*R, y = cy+Math.sin(a)*R;
+    i ? g.lineTo(x,y) : g.moveTo(x,y);
+  }
+  g.closePath();
+  const gr = g.createLinearGradient(0, cy-R, 0, cy+R);
+  gr.addColorStop(0,'#f4344f'); gr.addColorStop(0.45,'#e31337'); gr.addColorStop(1,'#a80f28');
+  g.fillStyle = gr; g.fill();
+  g.strokeStyle = '#7d0a1d'; g.lineWidth = R*0.05; g.stroke();
+  g.globalCompositeOperation = 'destination-out';
+  g.lineWidth = R*0.17; g.lineJoin = 'miter'; g.lineCap = 'butt';
+  [[-0.336, 0.391],[0.195, 0.922]].forEach(([x0,ax]) => {
+    g.beginPath();
+    g.moveTo(cx+x0*R, cy-R);
+    g.lineTo(cx+ax*R, cy);
+    g.lineTo(cx+x0*R, cy+R);
+    g.stroke();
+  });
+  return c;
+}
+
+/* ---------- ambient rain atlas ----------
+   Each katakana glyph is pre-rendered once into an offscreen atlas — two rows,
+   mid-green (tails) and pale (drop heads). The rain is then ~9000 drawImage
+   blits a frame instead of ~9000 fillText calls, which fillText cannot sustain. */
+const GLY = 'ｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿﾀﾁﾂﾃﾄﾅﾆﾇﾈﾉﾊﾋﾌﾍﾎﾏﾐﾑﾒﾓﾔﾕﾖﾗﾘﾙﾚﾛﾜﾝｰ'.split('');
+let atlas = null, atlasCell = 0;
+function buildAtlas(cellPx){
+  const a = document.createElement('canvas');
+  a.width = GLY.length*cellPx; a.height = 2*cellPx;
+  const g = a.getContext('2d');
+  g.textAlign='center'; g.textBaseline='middle';
+  g.font=`500 ${Math.round(cellPx*0.92)}px ui-monospace, Menlo, Consolas, monospace`;
+  for (let n=0;n<GLY.length;n++){
+    const cx = n*cellPx + cellPx/2;
+    g.fillStyle = '#37c983'; g.fillText(GLY[n], cx, cellPx*0.5);   // row 0: mid-green tails
+    g.fillStyle = '#c8ffe4'; g.fillText(GLY[n], cx, cellPx*1.5);   // row 1: pale heads
+  }
+  return a;
+}
+
+let W=0,H=0,cw=0,chh=0,vign=null,scan=null;
+function resize(){
+  const r = cv.getBoundingClientRect(); if (!r.width) return;
+  const dpr = Math.min(window.devicePixelRatio||1,2);
+  W=r.width; H=r.height;
+  cv.width=Math.round(W*dpr); cv.height=Math.round(H*dpr);
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  cw=W/COLS; chh=H/ROWS;
+  vign = ctx.createRadialGradient(W/2,H/2,Math.min(W,H)*0.3,W/2,H/2,Math.max(W,H)*0.7);
+  vign.addColorStop(0,'rgba(0,0,0,0)'); vign.addColorStop(1,'rgba(0,0,0,.6)');
+  const sc=document.createElement('canvas'); sc.width=1; sc.height=3;
+  const sx=sc.getContext('2d'); sx.fillStyle='rgba(0,0,0,.22)'; sx.fillRect(0,2,1,1);
+  scan = ctx.createPattern(sc,'repeat');
+  hexSprite = buildHex(Math.max(96, Math.round(Math.min(cw,chh)*6)));
+  buildBG();
+}
+new ResizeObserver(resize).observe(cv);
+
+function hash(a,b,c){
+  let h = Math.imul(a|0,374761393)+Math.imul(b|0,668265263)+Math.imul(c|0,2147483647);
+  h = Math.imul(h^(h>>>13),1274126177);
+  return (h^(h>>>16))>>>0;
+}
+const rnd = (a,b,c) => hash(a,b,c)/4294967296;
+
+/* ---------- THE INVARIANT ----------
+   Cell SAFETY derives from the level seed; resting BRIGHTNESS derives from a
+   fixed constant. The two hashes are statistically independent, so a player can
+   never read safety off brightness — they must read the digits. Do not couple
+   them. Glitch cells are the deliberate exception: their instability is shown
+   (shiver + alpha pulse), their instantaneous safety is not. */
+let seed=1, density=0.55, glitchDens=0;
+const isSafe = (i,k) => rnd(i*13+7,k,seed) < density;
+const rest = (i,k) => 0.36 + 0.20*rnd(i+401,k,77);
+function digitAt(i,k,t){
+  if (isSafe(i,k)) return rnd(i+31,k*3+1,seed) < 0.5 ? '0' : '1';
+  const f = Math.floor(t*2.0 + k*0.6);
+  return String(2 + Math.floor(rnd(i+91,k*7+5,seed+f*977)*8));
+}
+
+/* Glitch cells — chosen by a hash independent of both safety and brightness.
+   isGlitch decides WHICH cells shiver; glitchSafe decides their live state,
+   flipping every GLITCH_PERIOD on a per-cell phase. scrambleDigit renders a
+   fast-cycling digit unrelated to that state, so the shiver telegraphs danger
+   without revealing whether the cell holds weight right now. */
+const isGlitch     = (i,k) => glitchDens>0 && rnd(i*29+13, k, (seed^0x9e3779b1)>>>0) < glitchDens;
+const glitchPhase  = (i,k) => rnd(i+53, k*5+9, 0x51ed2701);
+function glitchSafe(i,k,t){
+  const ph = glitchPhase(i,k)*GLITCH_PERIOD;
+  return (Math.floor((t+ph)/GLITCH_PERIOD) & 1) === 0;
+}
+const safeNow = (i,k,t) => isGlitch(i,k) ? glitchSafe(i,k,t) : isSafe(i,k);
+function scrambleDigit(i,k,t){
+  return String(Math.floor(rnd(i+91, k*7+5, (seed + Math.floor(t*7)*131)|0)*10));
+}
+
+/* ---------- ambient rain state ---------- */
+let bg=[], bgCols=0, bgRows=0, bgColW=0, bgRowH=0;
+let rainScale=1, ftEMA=16, slowRun=0;
+function buildBG(){
+  bg=[];
+  const target = 11000;                              // ~9000 drawn after density
+  const cell = Math.max(5, Math.sqrt(W*H/target));
+  bgCols = Math.max(24, Math.round(W/cell));
+  bgRows = Math.max(20, Math.round(H/cell));
+  bgColW = W/bgCols; bgRowH = H/bgRows;
+  atlasCell = Math.max(6, Math.ceil(bgRowH*1.6));
+  atlas = buildAtlas(atlasCell);
+  const rows = bgRows;
+  for (let i=0;i<bgCols;i++)
+    bg.push({ x:(i+0.5)*bgColW, v:5+Math.random()*13, head:Math.random()*rows,
+              tail:14+Math.random()*22, dens:0.62+Math.random()*0.38, rows });
+}
+
+const lane=[];
+let state='menu', level=1, score=0, lives=3, furthest=0, unlocked=1;
+let bays=[false,false,false,false,false], clock=CROSS_TIME;
+try{ unlocked = Math.min(5, Math.max(1, parseInt(localStorage.getItem('bugger.unlocked')||'1',10)||1)); }catch(e){}
+function saveUnlocked(){ try{ localStorage.setItem('bugger.unlocked', String(unlocked)); }catch(e){} }
+let bug={col:0,k:11,face:1}, hop=null, trail=[], parts=[];
+let timer=0, flash=0, tNow=0, lastMove=0, assistMode='auto';
+function assistLevel(){
+  if (assistMode==='on') return 1;
+  if (assistMode==='off') return 0;
+  return level===1 ? 1 : level===2 ? 0.45 : 0;
+}
+const baysFilled = () => bays.reduce((n,b)=>n+(b?1:0),0);
+
+function newLevel(startLevel){
+  if (startLevel){ level=startLevel; score=0; lives=3; }
+  unlocked=Math.max(unlocked, level); saveUnlocked();
+  const L = LEVELS[Math.max(0,Math.min(LEVELS.length-1, level-1))];
+  seed=(level*7919+13)|0;
+  density=L.density;
+  glitchDens=L.glitch;
+  const base=L.speed;
+  lane.length=0;
+  for (let i=0;i<LANES;i++){
+    const v=base*(0.76+rnd(i,level,9)*0.55), heads=[];
+    const n=2+(hash(i,level,21)%2);
+    for (let j=0;j<n;j++) heads.push(rnd(i,level,30+j)*ROWS*1.6);
+    lane.push({s:rnd(i,level,5)*40, dir:i%2?1:-1, v, heads, tail:9+rnd(i,level,17)*11});
+  }
+  bays=[false,false,false,false,false];
+  respawn(); resetClock(); sync();
+}
+function respawn(){ bug={col:0,k:ROWS>>1,face:1}; hop=null; trail=[]; furthest=0; }
+function resetClock(){ clock=CROSS_TIME; }
+function sync(){
+  $('lvl').textContent=level;
+  $('bays').textContent=baysFilled()+'/'+BAY_ROWS.length;
+  $('score').textContent=score;
+  $('lives').textContent=lives;
+}
+
+const colX = c => (c+0.5)*cw;
+function bugXY(){
+  if (bug.col===0||bug.col===COLS-1) return {x:colX(bug.col), y:(bug.k+0.5)*chh};
+  const c=lane[bug.col-1];
+  return {x:colX(bug.col), y:(bug.k-c.s+0.5)*chh};
+}
+
+function move(dx,dy){
+  if (state!=='play' || tNow-lastMove<0.065) return;
+  lastMove=tNow;
+  const f=bugXY(), nc=bug.col+dx;
+  if (nc<0||nc>COLS-1) return;
+  if (dx) bug.face=dx;
+  if (dx===0){
+    if (f.y+dy*chh<0||f.y+dy*chh>H) return;
+    if (bug.col===0) bug.k=Math.max(0,Math.min(ROWS-1,bug.k+dy));
+    else { const k=bug.k+dy; if(!safeNow(bug.col-1,k,tNow)) return die('Dissolved'); bug.k=k; }
+  } else if (nc===COLS-1){
+    return bankAttempt(f);            // the right wall: only bays admit you
+  } else if (nc===0){
+    bug.k=Math.max(0,Math.min(ROWS-1,Math.round(f.y/chh-0.5))); bug.col=nc;
+  } else {
+    const c=lane[nc-1], k=Math.round(f.y/chh-0.5+c.s);
+    bug.col=nc; bug.k=k;
+    if (!safeNow(nc-1,k,tNow)) return die('Dissolved');
+  }
+  hop={x:f.x,y:f.y,t:0};
+  blip(dx>0?600:450,0.04);
+  if (bug.col>furthest){ furthest=bug.col; score+=10; sync(); }
+}
+
+/* Line up with a bay to bank. A miss or an occupied bay is refused with a short
+   error blip — never a death. Filling the fifth bay clears the level. */
+function bankAttempt(f){
+  const vr = Math.max(0,Math.min(ROWS-1,Math.round(f.y/chh-0.5)));
+  const idx = BAY_ROWS.indexOf(vr);
+  if (idx<0 || bays[idx]){ blip(230,0.05,'square'); return; }
+  bays[idx]=true;
+  const bonus = Math.floor(Math.max(0,clock)*5);           // pay out the clock
+  score += 150 + level*30 + bonus;
+  flash=1; blip(880,0.09); setTimeout(()=>blip(1180,0.12),90);
+  sync();
+  if (baysFilled()>=BAY_ROWS.length){ state='crossed'; timer=0.9; }
+  else { respawn(); resetClock(); }
+}
+function die(r){
+  if (state!=='play') return;
+  state='dying'; timer=1.0; lives--; sync();
+  const p=bugXY();
+  for (let i=0;i<24;i++) parts.push({x:p.x,y:p.y,vx:(Math.random()-.5)*190,vy:(Math.random()-.5)*190,
+                                     c:String(Math.floor(Math.random()*10)),a:1});
+  ovt.textContent=r; blip(150,0.2,'sawtooth');
+}
+
+addEventListener('keydown', e=>{
+  const m={arrowup:[0,-1],w:[0,-1],arrowdown:[0,1],s:[0,1],arrowleft:[-1,0],a:[-1,0],arrowright:[1,0],d:[1,0]}[e.key.toLowerCase()];
+  if (m){ e.preventDefault(); (state==='menu'||state==='over'||state==='win')?startLevel(1):move(m[0],m[1]); }
+  else if (e.key===' '||e.key.toLowerCase()==='p'){ e.preventDefault(); togglePause(); }
+});
+document.querySelectorAll('.pad button').forEach(b=>b.addEventListener('click',()=>{
+  const d={up:[0,-1],down:[0,1],left:[-1,0],right:[1,0]}[b.dataset.d];
+  (state==='menu'||state==='over'||state==='win')?startLevel(1):move(d[0],d[1]);
+}));
+let tx=0,ty=0;
+cv.addEventListener('touchstart',e=>{tx=e.changedTouches[0].clientX; ty=e.changedTouches[0].clientY;},{passive:true});
+cv.addEventListener('touchend',e=>{
+  const dx=e.changedTouches[0].clientX-tx, dy=e.changedTouches[0].clientY-ty;
+  if (Math.hypot(dx,dy)<16) return;
+  Math.abs(dx)>Math.abs(dy)?move(dx>0?1:-1,0):move(0,dy>0?1:-1);
+},{passive:true});
+
+let ac=null, muted=false;
+function blip(f,d,type){
+  if (muted) return;
+  try{
+    ac = ac||new (window.AudioContext||window.webkitAudioContext)();
+    const o=ac.createOscillator(), g=ac.createGain();
+    o.type=type||'square'; o.frequency.value=f;
+    g.gain.setValueAtTime(0.04,ac.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.0001,ac.currentTime+d);
+    o.connect(g); g.connect(ac.destination); o.start(); o.stop(ac.currentTime+d);
+  }catch(e){}
+}
+
+/* ---------- level select ---------- */
+const levelsEl = $('levels');
+function paintLevels(){
+  const btns = levelsEl.children;
+  for (let i=0;i<btns.length;i++) btns[i].classList.toggle('unlocked', (i+1)<=unlocked);
+}
+levelsEl.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{
+  startLevel(parseInt(b.dataset.l,10)||1);
+}));
+function startLevel(n){ newLevel(Math.max(1,Math.min(LEVELS.length,n))); state='play'; ov.hidden=true; }
+function togglePause(){
+  if (state==='play'){ state='paused'; show('Paused','The rain is frozen. It will not stay that way.','Resume',false); }
+  else if (state==='paused'){ state='play'; ov.hidden=true; }
+}
+function show(t,b,btn,withLevels){
+  ovt.textContent=t; ovp.innerHTML=b; $('go').textContent=btn;
+  levelsEl.hidden=!withLevels; if (withLevels) paintLevels();
+  ov.hidden=false;
+}
+$('go').onclick=()=>{ if(state==='paused'){state='play'; ov.hidden=true;} else startLevel(1); };
+$('pause').onclick=togglePause;
+$('mute').onclick=()=>{ muted=!muted; $('mute').textContent=muted?'Sound off':'Sound on'; };
+$('assist').onclick=()=>{ assistMode=assistMode==='auto'?'on':assistMode==='on'?'off':'auto';
+  $('assist').textContent='Assist: '+assistMode; };
+
+let last=performance.now();
+function frame(now){
+  const rawMs = now-last;
+  const dt=Math.min(0.05,rawMs/1000); last=now; tNow+=dt;
+
+  for (const b of bg){ b.head += b.v*dt; if (b.head > b.rows+b.tail) b.head = -2; }
+  if (state==='play'||state==='crossed'||state==='dying'){
+    for (const c of lane){
+      c.s += c.dir*c.v*dt;
+      for (let j=0;j<c.heads.length;j++){
+        c.heads[j] += c.dir*c.v*3.1*dt;
+        const lo=c.s-c.tail-2, hi=c.s+ROWS+c.tail+2;
+        if (c.heads[j]>hi) c.heads[j]=lo; else if (c.heads[j]<lo) c.heads[j]=hi;
+      }
+    }
+  }
+
+  if (state==='play' && bug.col>0 && bug.col<COLS-1){
+    const y=bugXY().y;
+    if (y<-0.5*chh||y>H+0.5*chh) die('Swept off');
+    else if (!safeNow(bug.col-1,bug.k,tNow)) die('Glitched');   // cell flipped underfoot
+  }
+
+  if (state==='play'){
+    clock-=dt;
+    if (clock<=0){ clock=0; die('Out of time'); }
+    const p=bugXY(); trail.unshift({x:p.x,y:p.y}); if(trail.length>6) trail.pop();
+  }
+  $('time').textContent=Math.ceil(Math.max(0,clock));
+  $('timecell').classList.toggle('warn', clock<5 && state==='play');
+
+  if (hop){ hop.t+=dt/0.10; if(hop.t>=1) hop=null; }
+  flash=Math.max(0,flash-dt*1.6);
+  for (const p of parts){ p.x+=p.vx*dt; p.y+=p.vy*dt; p.vy+=210*dt; p.a-=dt*0.95; }
+  parts=parts.filter(p=>p.a>0);
+
+  if (timer>0){
+    timer-=dt;
+    if (timer<=0){
+      if (state==='crossed'){
+        if (level>=LEVELS.length){
+          state='win';
+          show('You made it', `All five bays, all five levels. <em>${score}</em> points.`, 'Play again', true);
+        } else {
+          unlocked=Math.max(unlocked, Math.min(LEVELS.length, level+1)); saveUnlocked();
+          level++; newLevel(false); state='play';
+        }
+      } else if (state==='dying'){
+        if (lives<=0){ state='over'; sync();
+          show('Game over',`Level <em>${level}</em> · <em>${score}</em> points.`,'Try again',true); }
+        else { respawn(); resetClock(); state='play'; }
+      }
+    }
+  }
+
+  // adaptive rain guard — thin rather than stutter when frames run long
+  ftEMA += (rawMs-ftEMA)*0.12;
+  if (ftEMA>26){ if(++slowRun>18){ rainScale=Math.max(0.3, rainScale*0.88); slowRun=0; } }
+  else { slowRun=0; if (ftEMA<19 && rainScale<1) rainScale=Math.min(1, rainScale+0.015); }
+
+  draw(); requestAnimationFrame(frame);
+}
+
+function draw(){
+  if (!W || !atlas) return;
+  ctx.fillStyle='#010204'; ctx.fillRect(0,0,W,H);
+  const A=assistLevel();
+
+  // ambient rain — atlas blits, dimmed behind the lanes
+  const drawSize = bgRowH*1.42;
+  for (let i=0;i<bgCols;i++){
+    const b=bg[i];
+    for (let k=0;k<b.rows;k++){
+      if (rnd(i+7,k,313) > b.dens*rainScale) continue;
+      const d=b.head-k;
+      let a, head=false;
+      if (d<0||d>b.tail) a=0.03+0.05*rnd(i,k,29);
+      else if (d<1){ a=0.85; head=true; }
+      else a=(1-d/b.tail)*(0.26+0.4*rnd(i,k,53));
+      if (a<0.05) continue;
+      const gi=hash(i,k,(tNow*1.5+k*0.3)|0)%GLY.length;
+      ctx.globalAlpha=a;
+      ctx.drawImage(atlas, gi*atlasCell, head?atlasCell:0, atlasCell, atlasCell,
+                    b.x-drawSize/2, (k+0.5)*bgRowH-drawSize/2, drawSize, drawSize);
+    }
+  }
+  ctx.globalAlpha=1;
+  ctx.fillStyle='rgba(1,2,4,.42)'; ctx.fillRect(0,0,W,H);
+
+  // left bank — staging
+  ctx.fillStyle='rgba(1,4,3,.86)'; ctx.fillRect(0,0,cw,H);
+  ctx.strokeStyle='#0a1f15'; ctx.lineWidth=1;
+  for (let r=0;r<ROWS;r+=2) hexOut(cw/2,(r+1)*chh,cw*0.26);
+
+  // right bank — a wall with five bays
+  ctx.fillStyle='rgba(2,6,4,.92)'; ctx.fillRect(W-cw,0,cw,H);
+  for (let b=0;b<BAY_ROWS.length;b++){
+    const by=(BAY_ROWS[b]+0.5)*chh, bx=W-cw/2;
+    if (bays[b]){
+      ctx.drawImage(hexSprite, bx-cw*0.36, by-cw*0.36, cw*0.72, cw*0.72);
+    } else {
+      ctx.strokeStyle='#1f6b45'; ctx.lineWidth=2; hexOut(bx,by,cw*0.34);
+      ctx.strokeStyle='rgba(120,255,190,.16)'; ctx.lineWidth=1; hexOut(bx,by,cw*0.22);
+    }
+  }
+
+  // gameplay lanes
+  ctx.font=`500 ${chh*0.88}px ui-monospace, Menlo, Consolas, monospace`;
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  for (let i=0;i<LANES;i++){
+    const c=lane[i], x=colX(i+1);
+    const k0=Math.floor(c.s)-1, k1=Math.floor(c.s)+ROWS+1;
+    for (let k=k0;k<=k1;k++){
+      const y=(k-c.s+0.5)*chh;
+      if (y<-chh||y>H+chh) continue;
+      let lit=0, isHead=false;
+      for (const h of c.heads){
+        const d=(k-h)*c.dir;
+        if (d<=0.55&&d>-c.tail){
+          lit=Math.max(lit,Math.pow(1-Math.min(1,(0.55-d)/c.tail),1.5));
+          if (d>-1.1) isHead=true;
+        }
+      }
+      const glitch=isGlitch(i,k);
+      // assist brightens safe cells toward the head colour — never on glitch
+      // cells, so it can't leak their live state; same hue, no second colour
+      const boost = A>0 && !glitch && isSafe(i,k) ? A : 0;
+      const l = Math.max(lit, boost*0.9);
+      let sh=0, pulse=1;
+      if (glitch){
+        const ph=glitchPhase(i,k)*6.2832;
+        sh=Math.sin(tNow*20+ph)*cw*0.14;             // sideways shiver
+        pulse=0.58+0.42*Math.sin(tNow*7+ph*1.7);     // alpha pulse
+      }
+      const a = Math.max(rest(i,k), l*0.95)*(glitch?pulse:1);
+      let R,G,B;
+      if (isHead||boost>0.7){ R=190; G=255; B=215; }
+      else { R=Math.round(30+40*l); G=Math.round(165+80*l); B=Math.round(100+55*l); }
+      if (l>0.6){ ctx.shadowColor=`rgba(120,255,190,${l*0.7})`; ctx.shadowBlur=10*l; }
+      ctx.fillStyle=`rgba(${R},${G},${B},${a})`;
+      ctx.fillText(glitch?scrambleDigit(i,k,tNow):digitAt(i,k,tNow), x+sh, y);
+      ctx.shadowBlur=0;
+    }
+  }
+
+  for (const p of parts){ ctx.fillStyle=`rgba(227,19,55,${Math.max(0,p.a)})`; ctx.fillText(p.c,p.x,p.y); }
+
+  if (state!=='dying'&&state!=='menu'&&state!=='over'&&state!=='win'){
+    const s=Math.min(cw,chh)*1.15;
+    for (let i=trail.length-1;i>0;i--){
+      const t=trail[i], f=(1-i/trail.length)*0.14;
+      ctx.globalAlpha=f; drawBug(t.x,t.y,s*0.85,0,true); ctx.globalAlpha=1;
+    }
+    const t=bugXY(); let x=t.x,y=t.y;
+    if (hop){ const e=1-Math.pow(1-hop.t,3); x=hop.x+(t.x-hop.x)*e; y=hop.y+(t.y-hop.y)*e; }
+    drawBug(x, y-(hop?Math.sin(hop.t*Math.PI)*0.14*s:0), s, hop?Math.sin(hop.t*Math.PI)*0.22:0, false);
+  }
+
+  ctx.fillStyle=scan; ctx.fillRect(0,0,W,H);
+  ctx.fillStyle=vign; ctx.fillRect(0,0,W,H);
+  if (state==='play' && clock<5){
+    const p=0.05+0.05*Math.sin(tNow*10);
+    ctx.fillStyle=`rgba(255,40,60,${p})`; ctx.fillRect(0,0,W,H);
+  }
+  if (flash>0){ ctx.fillStyle=`rgba(185,255,217,${flash*0.14})`; ctx.fillRect(0,0,W,H); }
+}
+
+function hexOut(a,b,r){
+  ctx.beginPath();
+  for (let i=0;i<6;i++){ const g=Math.PI/6+i*Math.PI/3, px=a+Math.cos(g)*r, py=b+Math.sin(g)*r;
+    i?ctx.lineTo(px,py):ctx.moveTo(px,py); }
+  ctx.closePath(); ctx.stroke();
+}
+
+function drawBug(x,y,s,tilt,faint){
+  const R = s*0.47;
+  ctx.save(); ctx.translate(x,y);
+
+  // legs — six, behind the shell
+  if (!faint){
+    ctx.strokeStyle='rgba(140,10,30,.9)'; ctx.lineWidth=s*0.045; ctx.lineCap='round';
+    const wig = Math.sin(tNow*9)*0.06;
+    [[-0.5,-0.75],[0,-0.9],[0.45,-0.72],[-0.5,0.75],[0,0.9],[0.45,0.72]].forEach(([ax,ay])=>{
+      ctx.beginPath();
+      ctx.moveTo(ax*R*0.6, ay*R*0.45);
+      ctx.lineTo(ax*R*1.05, ay*R*(0.95+wig*Math.sign(ay)));
+      ctx.stroke();
+    });
+  }
+
+  ctx.rotate(tilt*0.35);
+  if (!faint){ ctx.shadowColor='rgba(227,19,55,.85)'; ctx.shadowBlur=s*0.5; }
+  if (hexSprite) ctx.drawImage(hexSprite, -s/2, -s/2, s, s);
+  ctx.shadowBlur=0;
+  ctx.rotate(-tilt*0.35);
+
+  // stalk eyes off the front — mirrored with travel; the mark itself never mirrors
+  ctx.scale(bug.face||1, 1);
+  const er = R*0.21, sx0 = R*0.86, sy0 = R*0.10, ex = R*1.42, ey = R*0.46;
+  const bob = Math.sin(tNow*6)*R*0.045;
+
+  ctx.strokeStyle='#8c0a22'; ctx.lineWidth=s*0.052; ctx.lineCap='round';
+  [-1,1].forEach(sgn=>{
+    ctx.beginPath();
+    ctx.moveTo(sx0, sgn*sy0);
+    ctx.lineTo(ex, sgn*ey + bob*sgn);
+    ctx.stroke();
+  });
+
+  [-1,1].forEach(sgn=>{
+    const cy = sgn*ey + bob*sgn;
+    ctx.beginPath(); ctx.arc(ex, cy, er, 0, Math.PI*2);
+    ctx.fillStyle='#f2f7f4'; ctx.fill();
+    ctx.strokeStyle='#7d0a1d'; ctx.lineWidth=s*0.020; ctx.stroke();
+    const look = 0.36 + 0.10*Math.sin(tNow*2.2);
+    ctx.beginPath(); ctx.arc(ex+er*look, cy, er*0.45, 0, Math.PI*2);
+    ctx.fillStyle='#12060a'; ctx.fill();
+  });
+
+  ctx.restore();
+}
+
+resize(); newLevel(1); state='menu'; sync(); paintLevels();
+requestAnimationFrame(frame);
+})();
+</script>

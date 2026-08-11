@@ -13,6 +13,10 @@ export const middleware = createMiddleware({
     // Note: 3speak.online/co removed (compromised/spam), code normalizes to 3speak.tv
     // Note: emb.d.tube removed (subdomain down, no renderer support)
     frameSrc: [
+      // Same-origin, so Basecamp can embed first-party assets like the Bugger
+      // game (public/bugger.html). frame-ancestors 'self' still prevents other
+      // sites from embedding Denser, so this only widens what Denser can frame.
+      "'self'",
       'https://platform.twitter.com',
       'https://www.instagram.com',
       'https://player.vimeo.com',
