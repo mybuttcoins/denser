@@ -523,3 +523,65 @@ Existing localStorage data without TTL structure is handled gracefully:
 - `getStorageItem()` returns legacy data as-is
 - Legacy items will be gradually replaced when users interact with the app
 - `cleanupExpiredItems()` only removes items with TTL structure that have expired
+
+---
+
+## Hive Basecamp — Integration Contract
+
+Hive Basecamp is a **built** newcomer section of the blog app (not a proposal). Code lives in
+`apps/blog/features/basecamp/` with the route at `apps/blog/app/basecamp/`. This section is the
+stable contract that separate modules — especially game modules — build against. Anything that
+connects to Basecamp MUST go through the interfaces below; do not invent parallel state.
+
+### On-chain state (the source of truth)
+
+Basecamp state is stored **on-chain as `custom_json`** so any Hive frontend can read it — never in a
+Denser-only table.
+
+- custom_json `id`: **`"basecamp"`** (`BASECAMP_CUSTOM_JSON_ID`, `features/basecamp/lib/protocol.ts`)
+- Auth: posting-only — `required_auths: []`, `required_posting_auths: [username]`
+- Payload wire shape: `[action, { v: 1, ...fields }]` (JSON tuple; version key is `v`,
+  `BASECAMP_SCHEMA_VERSION = 1`)
+- Actions: `join {interests}` · `leave {}` · `task {task}` · `guide_offer {interests, capacity}` ·
+  `guide_pair {account}` · `verify {account, method}`
+- Task ids: `profile_setup, first_follow, intro_post, first_replies, key_backup, wallet_tour`
+- Interest vocab (max 5): photography, gaming, food, art, music, travel, writing, nature, crypto,
+  diy, fitness, books
+
+**Write** (broadcast): only via `transactionService.basecamp*` in `packages/transaction/index.ts`
+(`basecampJoin`, `basecampLeave`, `basecampTaskComplete`, `basecampGuideOffer`, `basecampGuidePair`,
+`basecampVerify`). Never call a signer/wallet lib directly — signing is resolved from the active login
+method automatically.
+
+**Read**: `features/basecamp/hooks/use-basecamp-state.ts` → `fetchBasecampRecords(username)`. It fetches
+the `custom_json_operation` op_type_id **live at runtime** via `hafah-api operation-types`
+(⚠️ NEVER hardcode an op_type_id; there is no bitmask filter here), reads history via
+`hivemind-api accountsOperations`, then `decodeBasecampRecord` + `foldBasecampState`. Reads are
+**per-account only** — cross-account discovery (browse/filter all newcomers) needs a backend indexer
+and is out of frontend scope. `verify` is broadcast-capable but currently folds to a no-op.
+
+### Adding a game module (Puppet Patrol Games)
+
+Games are registry-driven — adding one touches only these spots:
+
+1. Create `features/basecamp/games/<name>-game.tsx` exporting a **default** `ComponentType`, with no
+   Denser-internal imports beyond the `BasecampAccent` colour type from `../lib/theme`
+   (copy `game-coming-soon.tsx`, a 3-line stub, to start).
+2. Add one entry to `BASECAMP_GAMES` in `features/basecamp/games/registry.ts`:
+   `{ id, titleKey, accent, Component }` — `titleKey` resolves under `basecamp.games.titles.<key>`;
+   `accent` must be unique so the game reads as its own colour.
+3. Add the title key to all 10 `apps/blog/locales/*/common_blog.json`.
+
+The section renders buttons/panels straight from the registry, so selection logic never changes.
+If a game should **award Basecamp progress**, do it through the `task` action
+(`transactionService.basecampTaskComplete(<taskId>)`) — do not create a separate progress store.
+
+### Conventions (mistakes already caught — do not reintroduce)
+
+- Broadcast only via `transactionService`; never a signer directly.
+- Never hardcode a custom_json op_type_id / assume a bitmask — fetch it live every time.
+- History reads return tagged objects `op: { type, value }`, not a `[name, body]` tuple.
+- Mutations: TanStack `useMutation`, optimistic `onMutate` → `onError` rollback (default to `[]`,
+  never pass `undefined` to `setQueryData`) → delayed `invalidateQueries`. Template:
+  `apps/blog/features/mute-follow/`.
+- All user-facing strings via `t('key')` (including toasts); errors via shared `handleError`.
