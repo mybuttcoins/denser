@@ -63,7 +63,7 @@
   <canvas id="cv"></canvas>
   <div class="overlay" id="ov">
     <h2 id="ovt">Read the rain</h2>
-    <p id="ovp">Thirteen lanes, then bank in one of five bays on the far wall. Only <em>0</em> and <em>1</em> hold your weight — and <em>20 seconds</em> a crossing.<br><br>Shivering cells are unstable: safe one instant, gone the next.</p>
+    <p id="ovp">Thirteen lanes, then bank in one of five bays on the far wall. Only <em>0</em> and <em>1</em> hold your weight — and <em>25 seconds</em> a crossing.<br><br>Shivering cells are unstable: safe one instant, gone the next.</p>
     <div class="levels" id="levels">
       <button data-l="1">1</button>
       <button data-l="2">2</button>
@@ -111,7 +111,7 @@ const LEVELS = [
   { speed: 1.58, density: 0.38, glitch: 0.105 },
   { speed: 1.88, density: 0.32, glitch: 0.140 }
 ];
-const CROSS_TIME = 30;          // seconds on the clock per crossing
+const CROSS_TIME = 25;          // seconds on the clock per crossing
 const GLITCH_PERIOD = 0.6;      // a glitch cell flips safe<->hostile this often
 const CELEBRATE_DUR = 3.0;      // level-win dance length before auto-advance
 let celebrateT = 0;             // elapsed time inside the celebration
