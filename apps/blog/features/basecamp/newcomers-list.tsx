@@ -49,8 +49,13 @@ const NewcomersList = () => {
   return (
     <>
       <ul data-testid="newcomers-list">
-        {newcomers.map(({ post, accountAgeDays }) => (
-          <NewcomersListItem key={`${post.author}/${post.permlink}`} post={post} accountAgeDays={accountAgeDays} />
+        {newcomers.map(({ post, accountAgeDays, account }) => (
+          <NewcomersListItem
+            key={`${post.author}/${post.permlink}`}
+            post={post}
+            accountAgeDays={accountAgeDays}
+            account={account}
+          />
         ))}
       </ul>
       <div className="mt-4 flex justify-center">

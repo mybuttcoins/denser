@@ -9,6 +9,7 @@ import { DEFAULT_OBSERVER } from '@/blog/lib/utils';
 import { StaleTime } from '@/blog/lib/react-query';
 import { useUserClient } from '@smart-signer/lib/auth/use-user-client';
 import type { Entry } from '@hive/common-hiveio-packages/wax';
+import { parseIsoMs, type SignalAccountInput } from '../lib/signals';
 
 const NEWCOMER_MAX_ACCOUNT_AGE_DAYS = 365;
 const MS_PER_DAY = 1000 * 60 * 60 * 24;
@@ -23,6 +24,8 @@ const MAX_RAW_FETCHES_PER_PAGE = 10;
 export interface Newcomer {
   post: Entry;
   accountAgeDays: number;
+  /** Narrow snapshot of the author's account, enough to compute card signals. */
+  account: SignalAccountInput;
 }
 
 interface NewcomerCursor {
@@ -35,26 +38,39 @@ interface NewcomersPage {
   nextCursor: NewcomerCursor | null;
 }
 
-// Account creation dates never change once looked up — cache them for the lifetime
-// of this browser tab (module scope, not per-hook-instance) so paginating never
+// A per author snapshot never changes for the lifetime of this browser tab, so
+// it is cached at module scope (not per-hook-instance): paginating never
 // re-queries the same author twice, even across separate Load More clicks or
-// remounts of the feed.
-const accountCreatedCache = new Map<string, string>();
+// remounts of the feed. Only the narrow set of fields the card signals need is
+// kept here, never the whole FullAccount object.
+const accountSnapshotCache = new Map<string, SignalAccountInput>();
 
-async function getAccountCreatedDates(authors: string[]): Promise<Map<string, string>> {
-  const uncached = authors.filter((author) => !accountCreatedCache.has(author));
+async function getAccountSnapshots(authors: string[]): Promise<Map<string, SignalAccountInput>> {
+  const uncached = authors.filter((author) => !accountSnapshotCache.has(author));
   if (uncached.length > 0) {
     // One batched request per page of authors, not one request per post.
     const accounts = await getAccounts(uncached);
     for (const account of accounts) {
-      accountCreatedCache.set(account.name, account.created);
+      accountSnapshotCache.set(account.name, {
+        createdIso: account.created ?? null,
+        postCount: typeof account.post_count === 'number' ? account.post_count : null,
+        postingJsonMetadata: account.posting_json_metadata ?? null,
+        jsonMetadata: account.json_metadata ?? null,
+        lastPostIso: account.last_post ?? null,
+        lastVoteTimeIso: account.last_vote_time ?? null,
+        receivedVestingAmount: account.received_vesting_shares?.amount ?? null
+      });
     }
   }
-  return accountCreatedCache;
+  return accountSnapshotCache;
 }
 
 function accountAgeDays(created: string): number {
-  return Math.floor((Date.now() - new Date(created).getTime()) / MS_PER_DAY);
+  // Single source of truth for date parsing: the same Z-appending helper the
+  // signals use, so the 365 day filter and account_age_days never disagree.
+  const createdMs = parseIsoMs(created);
+  if (createdMs === null) return -1;
+  return Math.floor((Date.now() - createdMs) / MS_PER_DAY);
 }
 
 /**
@@ -87,21 +103,21 @@ async function fetchNewcomersPage(cursor: NewcomerCursor | undefined, observer: 
     }
 
     const authors = Array.from(new Set(posts.map((post) => post.author)));
-    const createdByAuthor = await getAccountCreatedDates(authors);
+    const snapshotByAuthor = await getAccountSnapshots(authors);
 
     for (const post of posts) {
       const key = `${post.author}/${post.permlink}`;
       // Hive's cursor pagination re-includes the anchor post as the first result
-      // of the next fetch — guard against double-counting it across our internal
+      // of the next fetch. Guard against double-counting it across our internal
       // raw-page loop (a single Load More click can span several raw fetches).
       if (seenInPage.has(key)) continue;
       seenInPage.add(key);
 
-      const created = createdByAuthor.get(post.author);
-      if (!created) continue;
-      const ageDays = accountAgeDays(created);
+      const snapshot = snapshotByAuthor.get(post.author);
+      if (!snapshot || !snapshot.createdIso) continue;
+      const ageDays = accountAgeDays(snapshot.createdIso);
       if (ageDays >= 0 && ageDays < NEWCOMER_MAX_ACCOUNT_AGE_DAYS) {
-        collected.push({ post, accountAgeDays: ageDays });
+        collected.push({ post, accountAgeDays: ageDays, account: snapshot });
       }
     }
 

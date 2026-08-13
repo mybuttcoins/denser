@@ -756,6 +756,28 @@
         "sock_or_not": "Sock or Not",
         "spot_the_bot": "Spot the Bot"
       }
+    },
+    "signals": {
+      "value_unknown": "-",
+      "labels": {
+        "account_age_days": "Account age",
+        "profile_completeness": "Profile complete",
+        "total_actions": "Posts + comments",
+        "actions_per_day": "Actions/day",
+        "days_since_last_action": "Days since last action",
+        "replies_on_post": "Replies",
+        "votes_on_post": "Votes",
+        "received_delegation": "Started with delegated HP"
+      },
+      "units": {
+        "days": "{{value}}d",
+        "per_day": "{{value}}/day",
+        "count": "{{value}}",
+        "percent": "{{value}}%",
+        "boolean_true": "Yes",
+        "boolean_false": "No",
+        "none": "{{value}}"
+      }
     }
   }
 }
