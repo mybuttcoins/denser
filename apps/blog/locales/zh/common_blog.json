@@ -754,7 +754,8 @@
         "bugger": "Bugger",
         "cut_the_strings": "Cut the Strings",
         "sock_or_not": "Sock or Not",
-        "spot_the_bot": "Spot the Bot"
+        "spot_the_bot": "Spot the Bot",
+        "hive_frontend_universe": "Hive Frontend Universe"
       }
     },
     "signals": {
@@ -778,6 +779,36 @@
         "boolean_false": "No",
         "none": "{{value}}"
       }
+    }
+  },
+  "hive_frontend_universe": {
+    "controls": {
+      "hop": "跳跃",
+      "map": "地图"
+    },
+    "panel": {
+      "open": "打开",
+      "skip": "跳过",
+      "nothing_here": "这里还没有内容,稍后开放。"
+    },
+    "landmarks": {
+      "search": "搜索",
+      "communities": "社区",
+      "write_post": "写帖子",
+      "wallet": "钱包",
+      "arcade": "街机厅",
+      "healthchecker": "Healthchecker"
+    },
+    "hud": {
+      "houses": "房屋",
+      "window": "窗口"
+    },
+    "map": {
+      "hint": "点按地标即可前往"
+    },
+    "worlds": {
+      "dhf_fun_park": "DHF Fun Park",
+      "witty_world": "Witty World"
     }
   }
 }

@@ -4,6 +4,7 @@ import BuggerGame from './bugger-game';
 import CutTheStringsGame from './cut-the-strings-game';
 import SockOrNotGame from './sock-or-not-game';
 import SpotTheBotGame from './spot-the-bot-game';
+import HiveFrontendUniverseGame from './hive-frontend-universe-game';
 
 /**
  * The Puppet Patrol games.
@@ -29,5 +30,11 @@ export const BASECAMP_GAMES: readonly BasecampGame[] = [
   { id: 'bugger', titleKey: 'bugger', accent: 'amber', Component: BuggerGame },
   { id: 'cut_the_strings', titleKey: 'cut_the_strings', accent: 'rose', Component: CutTheStringsGame },
   { id: 'sock_or_not', titleKey: 'sock_or_not', accent: 'cyan', Component: SockOrNotGame },
-  { id: 'spot_the_bot', titleKey: 'spot_the_bot', accent: 'violet', Component: SpotTheBotGame }
+  { id: 'spot_the_bot', titleKey: 'spot_the_bot', accent: 'violet', Component: SpotTheBotGame },
+  {
+    id: 'hive_frontend_universe',
+    titleKey: 'hive_frontend_universe',
+    accent: 'emerald',
+    Component: HiveFrontendUniverseGame
+  }
 ];

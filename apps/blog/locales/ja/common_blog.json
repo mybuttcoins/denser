@@ -754,7 +754,8 @@
         "bugger": "Bugger",
         "cut_the_strings": "Cut the Strings",
         "sock_or_not": "Sock or Not",
-        "spot_the_bot": "Spot the Bot"
+        "spot_the_bot": "Spot the Bot",
+        "hive_frontend_universe": "Hive Frontend Universe"
       }
     },
     "signals": {
@@ -778,6 +779,36 @@
         "boolean_false": "No",
         "none": "{{value}}"
       }
+    }
+  },
+  "hive_frontend_universe": {
+    "controls": {
+      "hop": "ホップ",
+      "map": "マップ"
+    },
+    "panel": {
+      "open": "開く",
+      "skip": "スキップ",
+      "nothing_here": "ここにはまだ何もありません。後で開きます。"
+    },
+    "landmarks": {
+      "search": "検索",
+      "communities": "コミュニティ",
+      "write_post": "投稿を書く",
+      "wallet": "ウォレット",
+      "arcade": "アーケード",
+      "healthchecker": "Healthchecker"
+    },
+    "hud": {
+      "houses": "家",
+      "window": "ウィンドウ"
+    },
+    "map": {
+      "hint": "ランドマークをタップして移動"
+    },
+    "worlds": {
+      "dhf_fun_park": "DHF Fun Park",
+      "witty_world": "Witty World"
     }
   }
 }

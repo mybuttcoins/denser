@@ -856,7 +856,8 @@
         "bugger": "Bugger",
         "cut_the_strings": "Cut the Strings",
         "sock_or_not": "Sock or Not",
-        "spot_the_bot": "Spot the Bot"
+        "spot_the_bot": "Spot the Bot",
+        "hive_frontend_universe": "Hive Frontend Universe"
       }
     },
     "signals": {
@@ -880,6 +881,36 @@
         "boolean_false": "No",
         "none": "{{value}}"
       }
+    }
+  },
+  "hive_frontend_universe": {
+    "controls": {
+      "hop": "HOP",
+      "map": "MAP"
+    },
+    "panel": {
+      "open": "Open",
+      "skip": "Skip",
+      "nothing_here": "Nothing here yet. This place opens later."
+    },
+    "landmarks": {
+      "search": "Search",
+      "communities": "Communities",
+      "write_post": "Write a post",
+      "wallet": "Wallet",
+      "arcade": "Arcade",
+      "healthchecker": "Healthchecker"
+    },
+    "hud": {
+      "houses": "HOUSES",
+      "window": "WINDOW"
+    },
+    "map": {
+      "hint": "Tap a landmark to travel there"
+    },
+    "worlds": {
+      "dhf_fun_park": "DHF Fun Park",
+      "witty_world": "Witty World"
     }
   }
 }

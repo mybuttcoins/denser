@@ -754,7 +754,8 @@
         "bugger": "Bugger",
         "cut_the_strings": "Cut the Strings",
         "sock_or_not": "Sock or Not",
-        "spot_the_bot": "Spot the Bot"
+        "spot_the_bot": "Spot the Bot",
+        "hive_frontend_universe": "Hive Frontend Universe"
       }
     },
     "signals": {
@@ -778,6 +779,36 @@
         "boolean_false": "No",
         "none": "{{value}}"
       }
+    }
+  },
+  "hive_frontend_universe": {
+    "controls": {
+      "hop": "SALTO",
+      "map": "MAPPA"
+    },
+    "panel": {
+      "open": "Apri",
+      "skip": "Salta",
+      "nothing_here": "Qui non c’è ancora nulla. Questo posto aprirà più avanti."
+    },
+    "landmarks": {
+      "search": "Cerca",
+      "communities": "Comunità",
+      "write_post": "Scrivi un post",
+      "wallet": "Portafoglio",
+      "arcade": "Arcade",
+      "healthchecker": "Healthchecker"
+    },
+    "hud": {
+      "houses": "CASE",
+      "window": "FINESTRA"
+    },
+    "map": {
+      "hint": "Tocca un luogo per viaggiarci"
+    },
+    "worlds": {
+      "dhf_fun_park": "DHF Fun Park",
+      "witty_world": "Witty World"
     }
   }
 }
