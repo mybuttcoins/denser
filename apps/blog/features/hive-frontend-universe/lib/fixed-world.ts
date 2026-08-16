@@ -7,15 +7,15 @@
  * generated and lives in lib/landmass.ts; this file is the hand-tunable half:
  * where every permanent thing stands.
  *
- * Between the landmasses run the two CHANNELS, sized at 1.5-3x the maximum
- * drift hop, so the three are separate worlds until a future upgrade. Breakout
- * clusters hang off the outer coasts as little islands offshore:
+ * The three pieces are ONE CONNECTED WORLD. Two narrow straits (lib/landmass.ts)
+ * bridge the mark's negative space, so rail lines weave across them under the
+ * ordinary mesh rules and a player can travel anywhere without hopping. There
+ * are no uncrossable gaps left in this world. Breakout clusters hang off the
+ * outer coasts as little islands offshore:
  *
  *   - 'trail' clusters connect to a landmass by a single thin rail trail;
- *   - 'hop'   clusters connect by NOTHING and are reached only by hopping
- *             the gap with a full drift ring;
- *   - 'wall'  clusters sit behind gaps 1.5-3x the maximum hop distance and
- *             are deliberately unreachable for now.
+ *   - 'hop'   clusters connect by NOTHING and are reached with a short drift
+ *             hop, comfortably inside one full drift ring.
  *
  * Landmarks are spread across all three landmasses so each has a reason to be
  * visited, and the BIG FIVE (Arcade, DHF Fun Park, Witty World, Developer
@@ -59,7 +59,7 @@ export const WORLD = {
   /** How many house slots (live posts) the world holds. */
   houseSlots: 30,
   /** Half-extent the full travel map must fit, world px. */
-  fitExtent: 9200,
+  fitExtent: 8300,
   /** Communities float this far beyond the coastline, world px. */
   communityCoastOffset: 620,
   /** A safety bound for mask sampling; nothing meaningful beyond this. */
@@ -68,7 +68,7 @@ export const WORLD = {
 
 /* ---------------------------- the clusters ---------------------------- */
 
-export type ClusterLink = 'trail' | 'hop' | 'wall';
+export type ClusterLink = 'trail' | 'hop';
 
 export interface Cluster {
   id: string;
@@ -99,13 +99,14 @@ export const CLUSTERS: readonly Cluster[] = [
   // (4620, 4520), where the measured gap was 1.2-1.36x the max hop and the
   // cluster was therefore stranded despite being labelled hoppable.
   { id: 'records', x: 4300, y: 4200, link: 'hop', satellites: [] },
-  // Launch: WALL. Rockets across an uncrossable void, far east.
-  { id: 'launch', x: 7480, y: -1400, link: 'wall', satellites: [[300, 450]] },
-  // The gateway: WALL. A lone door far out in the western dark. Pushed out
-  // from (-7580, -600): the nearest lines here are the community bubbles off
-  // the diamond's west coast, not the coast itself, and against those the gap
-  // measured only 0.96-1.29x, which is a hoppable gap wearing a wall's label.
-  { id: 'gateway', x: -8250, y: -600, link: 'wall', satellites: [[60, 430], [300, 430]] }
+  // Launch: pulled in from (7480, -1400), where the gap measured 1.85-1.99x
+  // the max hop and the cluster was a wall. Pass seven removes every
+  // uncrossable gap in the world, so this is now a short hop like the others.
+  { id: 'launch', x: 6220, y: -1400, link: 'hop', satellites: [[300, 450]] },
+  // The gateway: likewise pulled in from (-8250, -600). Note that the nearest
+  // lines out here are the community bubbles off the diamond's west coast,
+  // not the coast itself, so its gap is measured against those.
+  { id: 'gateway', x: -7130, y: -600, link: 'hop', satellites: [[60, 430], [300, 430]] }
 ];
 
 /* ---------------------------- the landmarks ---------------------------- */

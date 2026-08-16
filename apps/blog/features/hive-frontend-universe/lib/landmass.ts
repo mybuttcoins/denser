@@ -37,6 +37,12 @@ export interface BodyCell {
   r: number;
   /** Which landmass this cell belongs to (index into LANDMASS_KEYS). */
   land: number;
+  /**
+   * True for the narrow isthmus cells that bridge the two straits. The mesh
+   * treats them as ordinary land, so rail lines weave across freely; the
+   * ground paints them dimmer so the three-piece silhouette still reads.
+   */
+  strait?: boolean;
 }
 
 const CELL_DATA: readonly number[] = [
@@ -114,12 +120,52 @@ const CELL_DATA: readonly number[] = [
   3157, 4599, 126, 2
 ];
 
+/**
+ * THE STRAITS. Pass six sized the two channels as uncrossable walls and the
+ * world became three sealed islands: half the posts were unreachable, the post
+ * line could only serve one piece, and map travel silently refused every
+ * landmark off the spawn's landmass. Pass seven reverses that.
+ *
+ * These hand-tuned chains of small cells are narrow land bridges across the
+ * two narrowest crossings (both measured at about 1310px of open water). They
+ * are ordinary land as far as the mask and the mesh are concerned, so the
+ * weave runs across them under the same rules as everywhere else and no
+ * special-case bridging code exists anywhere. Only the paint treats them
+ * differently, dimming so the three-piece mark still reads.
+ *
+ * Move a bridge by editing these coordinates; widen one by raising its radii.
+ */
+const STRAIT_CELLS: readonly BodyCell[] = [
+  // diamond to centre_blade
+  { x: -1086, y: 1653, r: 205, land: 0, strait: true },
+  { x: -982, y: 1759, r: 220, land: 0, strait: true },
+  { x: -761, y: 1939, r: 234, land: 0, strait: true },
+  { x: -651, y: 2037, r: 244, land: 0, strait: true },
+  { x: -536, y: 2127, r: 249, land: 0, strait: true },
+  { x: -415, y: 2208, r: 249, land: 1, strait: true },
+  { x: -288, y: 2280, r: 244, land: 1, strait: true },
+  { x: -156, y: 2344, r: 234, land: 1, strait: true },
+  { x: 95, y: 2479, r: 220, land: 1, strait: true },
+  { x: 233, y: 2535, r: 205, land: 1, strait: true },
+  // centre_blade to east_blade
+  { x: 2060, y: 1530, r: 205, land: 1, strait: true },
+  { x: 2188, y: 1609, r: 220, land: 1, strait: true },
+  { x: 2413, y: 1785, r: 234, land: 1, strait: true },
+  { x: 2533, y: 1872, r: 244, land: 1, strait: true },
+  { x: 2647, y: 1965, r: 249, land: 1, strait: true },
+  { x: 2754, y: 2067, r: 249, land: 2, strait: true },
+  { x: 2853, y: 2176, r: 244, land: 2, strait: true },
+  { x: 2946, y: 2291, r: 234, land: 2, strait: true },
+  { x: 3134, y: 2507, r: 220, land: 2, strait: true },
+  { x: 3219, y: 2630, r: 205, land: 2, strait: true }
+];
+
 export const BODY_CELLS: readonly BodyCell[] = (() => {
   const out: BodyCell[] = [];
   for (let i = 0; i < CELL_DATA.length; i += 4) {
     out.push({ x: CELL_DATA[i], y: CELL_DATA[i + 1], r: CELL_DATA[i + 2], land: CELL_DATA[i + 3] });
   }
-  return out;
+  return out.concat(STRAIT_CELLS);
 })();
 
 /**

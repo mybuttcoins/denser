@@ -1,14 +1,16 @@
 /**
  * Hive Frontend Universe - world assembly.
  *
- * Welds the layers into one travelable graph shaped like a ragged globular
- * BODY with BREAKOUT CLUSTERS:
- *   - the window's woven mesh fills the body mask (lib/fixed-world.ts cells),
- *     holding the posts and the in-body landmarks (as mesh anchors);
- *   - six permanent star clusters hang off the body: two tied on by a single
- *     thin rail trail, two reachable only by hopping their gap, two walled
- *     behind gaps 1.5-3x the maximum hop distance;
- *   - the community bubbles float just off the south-west coastline.
+ * Welds the layers into ONE travelable graph:
+ *   - the window's woven mesh fills the body mask (lib/landmass.ts cells),
+ *     holding the posts and the in-body landmarks (as mesh anchors). The mask
+ *     now includes the two narrow STRAITS, so the three pieces of the Hive
+ *     mark are woven into a single connected world and the weave crosses the
+ *     seams under exactly the same rules as everywhere else. There is no
+ *     bridging special case anywhere in this file;
+ *   - five permanent star clusters hang off the coasts, tied on by a thin rail
+ *     trail or reached with a short drift hop. Nothing is walled off;
+ *   - the community bubbles float just off the diamond's western coastline.
  *
  * Every added line is verified against the pass-two mesh rules: planarity
  * (numeric crossing check), max degree 4, and 35 degrees between lines
@@ -62,31 +64,33 @@ export interface WorldEdge extends MeshEdge {
 
 export interface GapReport {
   cluster: string;
-  link: 'hop' | 'wall';
+  link: 'hop';
   /** Measured narrowest gap between this cluster's lines and any other line. */
   gapPx: number;
   /** gapPx / maxHopPx. */
   ratio: number;
 }
 
-/** Rail reachability measured WITHIN one landmass, never across a channel. */
+/** How much of each landmass the spawn can actually reach on rails. */
 export interface LandmassReport {
   key: string;
   junctions: number;
   houses: number;
-  /** Junctions reachable from the landmass's largest rail component. */
+  /** Junctions on this landmass rail-reachable from the spawn. */
   reachableJunctions: number;
   reachableHouses: number;
-  /** True when every junction on this landmass is rail-reachable inside it. */
+  /** True when the spawn can rail to every junction on this landmass. */
   fullyConnected: boolean;
 }
 
-/** A measured channel between two landmasses. */
+/**
+ * A strait between two landmasses. Pass seven bridged these, so the number
+ * that matters is how many rail lines actually cross, not how wide the water
+ * is; `railLinks` of 0 would mean the world had come apart again.
+ */
 export interface ChannelReport {
   between: string;
-  gapPx: number;
-  /** gapPx / maxHopPx. Must sit in 1.5-3x for the channel to be a real wall. */
-  ratio: number;
+  railLinks: number;
 }
 
 export interface WorldStats {
@@ -105,7 +109,6 @@ export interface WorldStats {
   clusters: number;
   trailClusters: string[];
   hopOnlyClusters: string[];
-  wallClusters: string[];
   gaps: GapReport[];
   /** Longest gap the bug can cross with a full drift ring, simulated. */
   maxHopPx: number;
@@ -122,6 +125,8 @@ export interface GameWorld {
   communityNodeBySlot: number[];
   /** Rail-reachable from the spawn (body + trail clusters + communities). */
   reachableFromSpawn: boolean[];
+  /** Valid full-map travel targets: rail-reachable, plus short-hop clusters. */
+  travelReachable: boolean[];
 }
 
 /**
@@ -611,51 +616,52 @@ export function buildWorld(windowStart: number, houseCount: number): GameWorld {
     });
   }
 
-  // The channels: landmass to landmass, on rail lines only.
-  const channels: ChannelReport[] = [];
-  for (let a = 0; a < LANDMASS_COUNT; a++) {
-    for (let b = a + 1; b < LANDMASS_COUNT; b++) {
-      const best = nearestBetween(a, (g) => g === b);
-      channels.push({
-        between: `${LANDMASS_KEYS[a]} | ${LANDMASS_KEYS[b]}`,
-        gapPx: Math.round(best),
-        ratio: Math.round((best / maxHopPx) * 100) / 100
-      });
+  // ---- Travel targets for the full map. ----
+  //
+  // Rail-reachable from the spawn, PLUS the offshore clusters whose measured
+  // gap the bug can actually clear with one drift ring. Pass six used bare
+  // rail reachability here, which was correct when it was written and became
+  // wrong the moment the world split: every landmark off the spawn's island
+  // silently stopped being tappable, which is what broke map travel.
+  const travelReachable: boolean[] = reachableFromSpawn.slice();
+  for (const gap of gaps) {
+    if (gap.gapPx > maxHopPx) continue;
+    for (const ei of edgesByCluster.get(gap.cluster) ?? []) {
+      travelReachable[edges[ei].a] = true;
+      travelReachable[edges[ei].b] = true;
     }
   }
 
-  // ---- Per-landmass rail reachability: measured INSIDE each landmass. ----
+  // The straits: how many rail lines actually cross between each pair of
+  // landmasses. This is the pass-seven health check. Zero anywhere would mean
+  // the world had split back into islands.
+  const channels: ChannelReport[] = [];
+  for (let a = 0; a < LANDMASS_COUNT; a++) {
+    for (let b = a + 1; b < LANDMASS_COUNT; b++) {
+      let railLinks = 0;
+      for (const e of edges) {
+        const la = nodeLand[e.a];
+        const lb = nodeLand[e.b];
+        if ((la === a && lb === b) || (la === b && lb === a)) railLinks++;
+      }
+      channels.push({ between: `${LANDMASS_KEYS[a]} | ${LANDMASS_KEYS[b]}`, railLinks });
+    }
+  }
+
+  // ---- Per-landmass reachability, measured FROM THE SPAWN across the whole
+  // connected world (pass six measured it within each island, which no longer
+  // means anything now that the straits are bridged).
   const landmasses: LandmassReport[] = [];
   for (let land = 0; land < LANDMASS_COUNT; land++) {
     const own = nodes.filter((n) => nodeLand[n.id] === land).map((n) => n.id);
-    const ownSet = new Set(own);
-    const seen = new Set<number>();
-    let bestComponent: number[] = [];
-    for (const start of own) {
-      if (seen.has(start)) continue;
-      const comp: number[] = [];
-      const stack = [start];
-      seen.add(start);
-      while (stack.length) {
-        const v = stack.pop() as number;
-        comp.push(v);
-        for (const ei of incident[v]) {
-          const e = edges[ei];
-          const o = e.a === v ? e.b : e.a;
-          if (!ownSet.has(o) || seen.has(o)) continue;
-          seen.add(o);
-          stack.push(o);
-        }
-      }
-      if (comp.length > bestComponent.length) bestComponent = comp;
-    }
+    const reached = own.filter((id) => reachableFromSpawn[id]);
     landmasses.push({
       key: LANDMASS_KEYS[land],
       junctions: own.length,
       houses: own.filter((id) => nodes[id].kind === 'house').length,
-      reachableJunctions: bestComponent.length,
-      reachableHouses: bestComponent.filter((id) => nodes[id].kind === 'house').length,
-      fullyConnected: bestComponent.length === own.length
+      reachableJunctions: reached.length,
+      reachableHouses: reached.filter((id) => nodes[id].kind === 'house').length,
+      fullyConnected: reached.length === own.length
     });
   }
 
@@ -671,6 +677,7 @@ export function buildWorld(windowStart: number, houseCount: number): GameWorld {
     landmarkNodeByIndex,
     communityNodeBySlot,
     reachableFromSpawn,
+    travelReachable,
     stats: {
       junctions: nodes.length,
       edges: edges.length,
@@ -684,7 +691,6 @@ export function buildWorld(windowStart: number, houseCount: number): GameWorld {
       clusters: CLUSTERS.length,
       trailClusters: railClusters,
       hopOnlyClusters: CLUSTERS.filter((c) => c.link === 'hop').map((c) => c.id),
-      wallClusters: CLUSTERS.filter((c) => c.link === 'wall').map((c) => c.id),
       gaps,
       maxHopPx: Math.round(maxHopPx),
       droppedSpokes,

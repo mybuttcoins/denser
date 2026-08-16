@@ -64,8 +64,35 @@ export const PALETTE = {
    * have collided with the very markers that sit on it like stations.
    */
   route: '#ffc83a',
-  routeGlow: '#ffe9a8'
+  routeGlow: '#ffe9a8',
+  /**
+   * THE DAPPS LINE: cyan. The ground is now molten crimson, so cyan is its
+   * direct complement and separates from the terrain harder than anything
+   * else available. It also cannot be confused with the gold post line, which
+   * violet (the other candidate) would have struggled with: violet sits close
+   * to the crimson ground AND close to the dim slate streets, so it would have
+   * read as a slightly odd street rather than as a route.
+   */
+  dapps: '#35e0ff',
+  dappsGlow: '#a6f0ff'
 } as const;
+
+/** One named line of the transit map, drawn casing then glow then core. */
+export interface RouteLayer {
+  edges: Set<number>;
+  casing: string;
+  glow: string;
+  core: string;
+  /** Core stroke width in screen px at zoom 1. */
+  width: number;
+  /**
+   * Dash pattern for a line drawn ON TOP of another. The two named lines share
+   * a lot of track, and a solid line drawn second simply hides the first; a
+   * dashed one lets the line underneath show through the gaps, which is how
+   * transit maps have always drawn shared track.
+   */
+  dash?: number[];
+}
 
 export const ACCENT_HEX: Record<string, string> = {
   violet: '#B79CFF',
@@ -196,8 +223,11 @@ export interface RenderScene {
   cubes: Cube[];
   flows: FlowParticle[];
   traffic: TrafficMarker[];
-  /** Edge ids of the post line (and later routes), drawn thick and warm. */
-  routeEdges: Set<number>;
+  /**
+   * The named lines, drawn in order so the flagship lands on top. Ordinary
+   * mesh edges are the dim streets underneath.
+   */
+  routeLayers: RouteLayer[];
   /** The inert population; its whole seam lives in engine/critters.ts. */
   critters: CritterState | null;
   /** The filled landmasses under everything; built once per window. */
@@ -350,9 +380,10 @@ export function drawScene(scene: RenderScene): void {
   };
   for (const kind of ['mesh', 'spoke'] as const) {
     ctx.strokeStyle = kind === 'mesh' ? PALETTE.mesh : PALETTE.spoke;
-    ctx.lineWidth = (kind === 'mesh' ? 2.2 : 2.0) / Math.max(z, 0.05);
-    // Dim: streets on the terrain, not stars over it.
-    ctx.globalAlpha = kind === 'mesh' ? 0.42 : 0.4;
+    ctx.lineWidth = (kind === 'mesh' ? 1.8 : 1.7) / Math.max(z, 0.05);
+    // Thin, dim and cool: these are the local streets. The two named lines
+    // are what the eye should catch.
+    ctx.globalAlpha = kind === 'mesh' ? 0.34 : 0.32;
     for (const e of edges) {
       if (e.kind !== kind || !edgeVis(e)) continue;
       strokeEdge(e);
@@ -368,23 +399,35 @@ export function drawScene(scene: RenderScene): void {
   // it crosses rather than just against the average one: a dark casing that
   // separates it from whatever tone is underneath, a soft glow, then the gold
   // core on top.
-  if (scene.routeEdges.size) {
-    const routePass = [
-      { col: '#1a0d05', w: 13.5, a: 0.85 },
-      { col: PALETTE.routeGlow, w: 10, a: 0.3 },
-      { col: PALETTE.route, w: 6.8, a: 1 }
-    ];
-    for (const p of routePass) {
+  // On the pulled-out map the casing and glow passes are sub-pixel decoration
+  // but cost a full stroke of every route edge each. Since pass seven the post
+  // line spans the whole world (roughly 110 edges rather than 45) and there are
+  // two lines, so the three-pass treatment measured about 6ms of the frame at
+  // map zoom. Collapsing to a single fatter core pass there is invisible and
+  // pays for itself.
+  const routeLod = z < 0.12;
+  for (const layer of scene.routeLayers) {
+    if (!layer.edges.size) continue;
+    const passes = routeLod
+      ? [{ col: layer.core, w: layer.width * 1.5, a: 1 }]
+      : [
+          { col: layer.casing, w: layer.width * 1.98, a: 0.85 },
+          { col: layer.glow, w: layer.width * 1.47, a: 0.3 },
+          { col: layer.core, w: layer.width, a: 1 }
+        ];
+    if (layer.dash) ctx.setLineDash(layer.dash.map((d) => d / Math.max(z, 0.05)));
+    for (const p of passes) {
       ctx.strokeStyle = p.col;
       ctx.lineWidth = p.w / Math.max(z, 0.05);
       ctx.globalAlpha = p.a;
       for (const e of edges) {
-        if (!scene.routeEdges.has(e.id) || !edgeVis(e)) continue;
+        if (!layer.edges.has(e.id) || !edgeVis(e)) continue;
         strokeEdge(e);
       }
     }
-    ctx.globalAlpha = 1;
+    if (layer.dash) ctx.setLineDash([]);
   }
+  ctx.globalAlpha = 1;
 
   // Operation flows: the real counts, moving. Each type its own shape.
   for (const p of scene.flows) {

@@ -22,7 +22,7 @@ import { useCommunities } from '../hooks/use-communities';
 import { HFU_COPY } from '../lib/strings';
 import { TIERS, type Board } from '../lib/board';
 import { WORLD, LANDMARKS, LANDMARK_ACCOUNTS } from '../lib/fixed-world';
-import { buildRoutes } from '../lib/routes';
+import { buildRoutes, POST_LINE_ID, DAPPS_LINE_ID } from '../lib/routes';
 import { buildWorld, type GameWorld } from './world';
 import { createCritters, updateCritters, type CritterState } from './critters';
 import { buildGround } from './ground';
@@ -39,10 +39,12 @@ import {
 } from './movement';
 import {
   drawScene,
+  PALETTE,
   type Camera,
   type CommunityVisual,
   type HouseVisual,
   type LandmarkVisual,
+  type RouteLayer,
   type TrafficMarker
 } from './render';
 import { placeFactories, placeCubes } from './scenery';
@@ -98,7 +100,29 @@ const Stage = ({ board }: { board: Board }) => {
   );
   // The routes seam: named edge-id lists riding ON the mesh, no new geometry.
   const routes = useMemo(() => buildRoutes(world), [world]);
-  const routeEdgeSet = useMemo(() => new Set(routes.flatMap((r) => r.edgeIds)), [routes]);
+  // The transit map: the flagship post line laid first and solid, then the
+  // dApps line dashed on top so shared track reads as two services rather
+  // than as one line hiding the other.
+  const routeLayers: RouteLayer[] = useMemo(() => {
+    const byId = (id: string) => new Set(routes.find((r) => r.id === id)?.edgeIds ?? []);
+    return [
+      {
+        edges: byId(POST_LINE_ID),
+        casing: '#1a0d05',
+        glow: PALETTE.routeGlow,
+        core: PALETTE.route,
+        width: 6.8
+      },
+      {
+        edges: byId(DAPPS_LINE_ID),
+        casing: '#04141c',
+        glow: PALETTE.dappsGlow,
+        core: PALETTE.dapps,
+        width: 4.2,
+        dash: [30, 22]
+      }
+    ];
+  }, [routes]);
   // The ground: filled landmasses, built ONCE per window and then only filled.
   const ground = useMemo(() => buildGround(board.windowStart), [board.windowStart]);
 
@@ -267,9 +291,11 @@ const Stage = ({ board }: { board: Board }) => {
       return best;
     };
 
-    // Full-map travel: click a fixed landmark to warp the bug there. Only
-    // rail-reachable places are travel targets; the map never jumps a gap
-    // the bug itself cannot cross.
+    // Full-map travel: click a fixed landmark to warp the bug there. Targets
+    // are the places the bug could reach under its own power, which is what
+    // `travelReachable` measures: rail-reachable from the spawn, plus the
+    // offshore clusters whose gap fits inside one drift ring. The map never
+    // offers a jump the bug itself could not make.
     const onCanvasClick = (e: MouseEvent) => {
       if (!fullMapRef.current) {
         // Play zoom: tapping a post marker (generous target) opens its card.
@@ -286,7 +312,7 @@ const Stage = ({ board }: { board: Board }) => {
       let bestD = threshold;
       for (const n of nodes) {
         if (n.kind !== 'landmark' && n.kind !== 'community') continue;
-        if (!world.reachableFromSpawn[n.id]) continue;
+        if (!world.travelReachable[n.id]) continue;
         const d = Math.hypot(n.x - wx, n.y - wy);
         if (d < bestD) {
           bestD = d;
@@ -481,7 +507,7 @@ const Stage = ({ board }: { board: Board }) => {
         cubes,
         flows: flowsRef.current?.particles ?? [],
         traffic: trafficRef.current,
-        routeEdges: routeEdgeSet,
+        routeLayers,
         critters: crittersRef.current,
         ground,
         activeCommunity: inCommunityTick.current,

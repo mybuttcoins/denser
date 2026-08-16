@@ -3,30 +3,33 @@
 /**
  * Hive Frontend Universe - the ground.
  *
- * Everything used to float as wireframe on black. This layer puts land under
- * it. The silhouette is the three landmasses from lib/landmass.ts, whose
- * combined outline is the real Hive mark eroded into terrain.
+ * The silhouette is the three pieces of the real Hive mark from
+ * lib/landmass.ts, eroded into terrain and, since pass seven, stitched into
+ * one connected world by two narrow straits.
  *
- * How it is painted, and why it is built this way:
+ * THE LOOK: molten translucent red, lit from inside, like backlit red glass
+ * over a black void. Pass six painted this as flat dark tints and it came out
+ * as a brown smear, so the paint is now built in three layers:
  *
- *   - Every terrain cell is filled OPAQUE. Overlapping opaque fills union
- *     seamlessly, so the landmass reads as one continuous mass with a ragged
- *     coast rather than a heap of visible discs. This is the reason region
- *     tint is baked into each cell's own colour instead of being washed over
- *     the top as a translucent patch, which would seam badly at every overlap.
- *   - Regions are seeded groups of cells, drawn from a MUTED family: dark,
- *     ambient, low saturation, never neon. They give a landmass internal
- *     geography without competing with anything drawn on top.
- *   - The coastal radiance is one small pre-blurred texture stretched under
- *     everything. Blur is cheap at low resolution and it is a soft glow
- *     anyway, so a small texture costs nothing and looks correct.
+ *   1. BASE, opaque. Deep crimson, one flat tone per region. Opaque matters:
+ *      overlapping opaque fills union seamlessly, so the landmass reads as one
+ *      mass with a ragged coast rather than a heap of visible discs. This is
+ *      why region tint is baked into each cell's own colour rather than washed
+ *      over the top, which would seam at every overlap.
+ *   2. GLASS, additive. One pre-rendered texture holding a soft radial bloom
+ *      per cell plus a luminous coastal rim. Because the blooms are ADDED
+ *      where cells overlap, the deep interior (many overlapping neighbours)
+ *      comes out bright and the coast (few neighbours) stays deep, with no
+ *      distance field needed anywhere. That is the whole trick.
+ *   3. HALO, under everything. A heavily blurred red silhouette so the coast
+ *      never sits on a hard black edge.
  *
- * Built ONCE per window and cached: the cell paths and colours are computed in
- * `buildGround`, and `drawGround` only fills stored Path2D objects, culled to
- * the viewport. Nothing here recomputes geometry per frame.
+ * The straits are painted darker so the glow visibly dips at the seams and the
+ * three-piece mark still reads, even though rail lines cross them freely.
  *
- * The silhouette itself never varies: the cell table is fixed forever. Only
- * the interior region weave is reseeded from the window start.
+ * All three layers are built ONCE per window. `drawGround` fills stored Path2D
+ * objects (culled to the viewport) and blits two textures. Nothing here
+ * recomputes geometry per frame.
  */
 
 import { BODY_CELLS, cellRadiusAt, LANDMASS_COUNT } from '../lib/landmass';
@@ -36,32 +39,30 @@ import { mulberry32 } from '../lib/mesh';
 export const GROUND_VOID = '#04030a';
 
 /**
- * The muted region family. All are dark and desaturated so the terrain stays
- * a backdrop; the variation is in hue, not in brightness, so no region ever
- * reads as a highlight. Warm reds dominate, as on the hive.io backdrop, with
- * a few cool territories so the world is not monotone.
+ * Region base tones: one warm glowing family, all deep crimson. Every entry
+ * sits in the red hue band on purpose. Pass six mixed in slate greys and
+ * desaturated ochres, which is exactly what read as mud; if a tone here ever
+ * drifts toward brown or grey it is wrong.
  */
-const WARM_TONES: readonly string[] = [
-  '#2b1219',
-  '#33161b',
-  '#2e1c14',
-  '#301a18',
-  '#271620',
-  '#351a1c'
+const REGION_TONES: readonly string[] = [
+  '#4a1020',
+  '#3d0d1a',
+  '#551426',
+  '#420f1d',
+  '#4e1223',
+  '#360b17'
 ];
 
 /**
- * Cool territories, used sparingly. Picking freely from one combined list let
- * a window come out mostly slate blue, which reads nothing like the warm
- * hive.io backdrop the ground is supposed to evoke, so warmth is now
- * guaranteed: at most ONE region per landmass may be cool.
+ * Straits are painted this much darker, so the glow dips at the seams and the
+ * three-piece mark still reads. Not darker than this: at 0.42 the isthmus went
+ * so close to the void that the rail lines looked like they were crossing open
+ * water rather than a bridge.
  */
-const COOL_TONES: readonly string[] = ['#1b2020', '#182029', '#1c1b28'];
+const STRAIT_DIM = 0.62;
 
 /** How many regions each landmass is divided into. */
 const REGIONS_PER_LANDMASS = 4;
-/** Chance that a landmass's single cool slot is actually spent. */
-const COOL_CHANCE = 0.55;
 
 /**
  * Below this zoom the coarse outlines are used. At 0.18 a 470px cell is about
@@ -74,29 +75,24 @@ export interface Ground {
   cellPaths: Path2D[];
   /**
    * The same outlines at a coarse sample count, used on the pulled-out map.
-   * At map zoom the whole world is a few hundred pixels wide, so the detailed
-   * rims are far below a pixel, but the renderer still pays for every point:
-   * filling the detailed paths measured 14.4ms per frame at map zoom against a
-   * 16.7ms budget. Swapping in coarse paths there costs nothing visible.
+   * At map zoom the detailed rims are far below a pixel but the renderer still
+   * pays for every point: the detailed paths measured 14.4ms per frame at map
+   * zoom against a 16.7ms budget. Swapping these in costs nothing visible.
    */
   cellPathsCoarse: Path2D[];
-  /** Opaque fill colour per cell (its region's tone). */
+  /** Opaque base fill colour per cell (its region's tone). */
   cellColors: string[];
   /** Bounding box per cell, for viewport culling. */
   cellBox: { x0: number; y0: number; x1: number; y1: number }[];
-  /** Pre-blurred coastal radiance, stretched under the terrain. */
-  glow: HTMLCanvasElement | null;
-  glowBox: { x: number; y: number; w: number; h: number };
-  /** Measured, for the report. */
+  /** Additive interior bloom plus coastal rim. */
+  glass: HTMLCanvasElement | null;
+  /** Blurred outer radiance, drawn under the land. */
+  halo: HTMLCanvasElement | null;
+  /** World-space box both textures are stretched across. */
+  texBox: { x: number; y: number; w: number; h: number };
   stats: { cells: number; regions: number; buildMs: number };
 }
 
-/**
- * Samples per cell outline, scaled by radius. A flat count left the big cells
- * visibly faceted at play zoom (a 840px cell at 40 samples has 130px straight
- * segments, which reads as a polygon, not a coast), while small cells wasted
- * points. Roughly one sample per 12 world px of radius fixes both ends.
- */
 function blobSamples(r: number): number {
   return Math.max(24, Math.min(120, Math.round(r / 12)));
 }
@@ -117,26 +113,100 @@ function blobPath(index: number, sampleOverride?: number): Path2D {
   return p;
 }
 
-/**
- * The coastal radiance: the whole silhouette drawn small into an offscreen
- * canvas under a heavy blur, so the land glows gently against the void and
- * the coastline never sits on a hard black edge.
- */
-function buildGlow(box: { x: number; y: number; w: number; h: number }): HTMLCanvasElement | null {
+/** Scales a #rrggbb toward black. Used to sink the straits. */
+function dim(hex: string, k: number): string {
+  const n = parseInt(hex.slice(1), 16);
+  const r = Math.round(((n >> 16) & 255) * k);
+  const g = Math.round(((n >> 8) & 255) * k);
+  const b = Math.round((n & 255) * k);
+  return `rgb(${r}, ${g}, ${b})`;
+}
+
+function makeCanvas(w: number, h: number): { canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D } | null {
   if (typeof document === 'undefined') return null;
-  const TEX_W = 640;
-  const scale = TEX_W / box.w;
   const canvas = document.createElement('canvas');
-  canvas.width = TEX_W;
-  canvas.height = Math.max(1, Math.round(box.h * scale));
+  canvas.width = w;
+  canvas.height = h;
   const ctx = canvas.getContext('2d');
   if (!ctx) return null;
+  return { canvas, ctx };
+}
+
+/**
+ * The glass layer: an additive bloom per cell, then a luminous coastal rim.
+ *
+ * The rim is carved rather than stroked. Stroking every cell would draw the
+ * internal boundaries too, which would expose the discs the terrain is made
+ * of. Instead the union is filled solid and then the union at 88% radius is
+ * punched out of it: interior rims are covered by their neighbours' punches,
+ * so only the true outer coast survives as a band.
+ */
+function buildGlass(
+  box: { x: number; y: number; w: number; h: number },
+  texW: number
+): HTMLCanvasElement | null {
+  const scale = texW / box.w;
+  const made = makeCanvas(texW, Math.max(1, Math.round(box.h * scale)));
+  if (!made) return null;
+  const { canvas, ctx } = made;
   ctx.setTransform(scale, 0, 0, scale, -box.x * scale, -box.y * scale);
-  // A blur wide enough to read as radiance rather than as an outline.
-  ctx.filter = 'blur(7px)';
-  ctx.fillStyle = '#8d1f2c';
+
+  // 1) Interior bloom, accumulating where cells overlap.
+  ctx.globalCompositeOperation = 'lighter';
   for (let i = 0; i < BODY_CELLS.length; i++) {
     const c = BODY_CELLS[i];
+    const strength = c.strait ? 0.16 : 0.3;
+    const g = ctx.createRadialGradient(c.x, c.y, 0, c.x, c.y, c.r * 1.05);
+    g.addColorStop(0, `rgba(255, 58, 74, ${strength})`);
+    g.addColorStop(0.55, `rgba(214, 30, 58, ${strength * 0.45})`);
+    g.addColorStop(1, 'rgba(150, 12, 40, 0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(c.x, c.y, c.r * 1.05, 0, 6.283);
+    ctx.fill();
+  }
+
+  // 2) Coastal rim, carved on a scratch layer then added on top.
+  const rimMade = makeCanvas(canvas.width, canvas.height);
+  if (rimMade) {
+    const rctx = rimMade.ctx;
+    rctx.setTransform(scale, 0, 0, scale, -box.x * scale, -box.y * scale);
+    rctx.fillStyle = '#ff5a6e';
+    for (let i = 0; i < BODY_CELLS.length; i++) rctx.fill(blobPath(i));
+    rctx.globalCompositeOperation = 'destination-out';
+    for (let i = 0; i < BODY_CELLS.length; i++) {
+      const c = BODY_CELLS[i];
+      rctx.save();
+      rctx.translate(c.x, c.y);
+      rctx.scale(0.88, 0.88);
+      rctx.translate(-c.x, -c.y);
+      rctx.fill(blobPath(i));
+      rctx.restore();
+    }
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = 0.55;
+    ctx.filter = 'blur(1.5px)';
+    ctx.drawImage(rimMade.canvas, 0, 0);
+    ctx.filter = 'none';
+    ctx.globalAlpha = 1;
+  }
+
+  ctx.globalCompositeOperation = 'source-over';
+  return canvas;
+}
+
+/** The outer radiance: the silhouette, heavily blurred, under the land. */
+function buildHalo(box: { x: number; y: number; w: number; h: number }): HTMLCanvasElement | null {
+  const TEX_W = 640;
+  const scale = TEX_W / box.w;
+  const made = makeCanvas(TEX_W, Math.max(1, Math.round(box.h * scale)));
+  if (!made) return null;
+  const { canvas, ctx } = made;
+  ctx.setTransform(scale, 0, 0, scale, -box.x * scale, -box.y * scale);
+  ctx.filter = 'blur(7px)';
+  ctx.fillStyle = '#c4213f';
+  for (const c of BODY_CELLS) {
     ctx.beginPath();
     ctx.arc(c.x, c.y, c.r * 1.1, 0, 6.283);
     ctx.fill();
@@ -156,15 +226,14 @@ export function buildGround(windowStart: number): Ground {
   for (let land = 0; land < LANDMASS_COUNT; land++) {
     const own = BODY_CELLS.filter((c) => c.land === land);
     if (!own.length) continue;
-    // One cool slot at most, and only sometimes; every other region is warm.
-    const coolSlot = rng() < COOL_CHANCE ? Math.floor(rng() * REGIONS_PER_LANDMASS) : -1;
     for (let k = 0; k < REGIONS_PER_LANDMASS; k++) {
       const pick = own[Math.floor(rng() * own.length)];
-      const tone =
-        k === coolSlot
-          ? COOL_TONES[Math.floor(rng() * COOL_TONES.length)]
-          : WARM_TONES[Math.floor(rng() * WARM_TONES.length)];
-      seeds.push({ x: pick.x, y: pick.y, land, tone });
+      seeds.push({
+        x: pick.x,
+        y: pick.y,
+        land,
+        tone: REGION_TONES[Math.floor(rng() * REGION_TONES.length)]
+      });
     }
   }
 
@@ -181,7 +250,7 @@ export function buildGround(windowStart: number): Ground {
     const c = BODY_CELLS[i];
     cellPaths.push(blobPath(i));
     cellPathsCoarse.push(blobPath(i, 14));
-    let best = WARM_TONES[0];
+    let best = REGION_TONES[0];
     let bestD = Infinity;
     for (const s of seeds) {
       if (s.land !== c.land) continue;
@@ -191,7 +260,7 @@ export function buildGround(windowStart: number): Ground {
         best = s.tone;
       }
     }
-    cellColors.push(best);
+    cellColors.push(c.strait ? dim(best, STRAIT_DIM) : best);
     const rMax = c.r * 1.32;
     cellBox.push({ x0: c.x - rMax, y0: c.y - rMax, x1: c.x + rMax, y1: c.y + rMax });
     x0 = Math.min(x0, c.x - rMax);
@@ -200,23 +269,23 @@ export function buildGround(windowStart: number): Ground {
     y1 = Math.max(y1, c.y + rMax);
   }
 
-  // Pad the glow box so the blur has room to fall off outside the coast.
   const pad = 900;
-  const glowBox = { x: x0 - pad, y: y0 - pad, w: x1 - x0 + pad * 2, h: y1 - y0 + pad * 2 };
+  const texBox = { x: x0 - pad, y: y0 - pad, w: x1 - x0 + pad * 2, h: y1 - y0 + pad * 2 };
 
   return {
     cellPaths,
     cellPathsCoarse,
     cellColors,
     cellBox,
-    glow: buildGlow(glowBox),
-    glowBox,
+    glass: buildGlass(texBox, 1536),
+    halo: buildHalo(texBox),
+    texBox,
     stats: { cells: BODY_CELLS.length, regions: seeds.length, buildMs: Date.now() - t0 }
   };
 }
 
 /**
- * Fills the terrain. `vx0..vy1` is the world-space viewport, so only cells
+ * Paints the terrain. `vx0..vy1` is the world-space viewport, so only cells
  * actually on screen are filled; at play zoom that is a handful.
  */
 export function drawGround(
@@ -230,17 +299,26 @@ export function drawGround(
   z: number
 ): void {
   const paths = z < GROUND_LOD_Z ? g.cellPathsCoarse : g.cellPaths;
-  // The radiance first, under the land.
-  if (g.glow) {
-    ctx.globalAlpha = 0.32;
-    ctx.drawImage(g.glow, g.glowBox.x, g.glowBox.y, g.glowBox.w, g.glowBox.h);
+
+  // Halo first, under the land.
+  if (g.halo) {
+    ctx.globalAlpha = 0.42;
+    ctx.drawImage(g.halo, g.texBox.x, g.texBox.y, g.texBox.w, g.texBox.h);
     ctx.globalAlpha = 1;
   }
-  // Then the land itself: opaque fills, so overlaps union without seams.
+
+  // Opaque base, so overlaps union without seams.
   for (let i = 0; i < paths.length; i++) {
     const b = g.cellBox[i];
     if (b.x1 < vx0 || b.x0 > vx1 || b.y1 < vy0 || b.y0 > vy1) continue;
     ctx.fillStyle = g.cellColors[i];
     ctx.fill(paths[i]);
+  }
+
+  // The glass on top: interior bloom and coastal rim, added.
+  if (g.glass) {
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.drawImage(g.glass, g.texBox.x, g.texBox.y, g.texBox.w, g.texBox.h);
+    ctx.globalCompositeOperation = 'source-over';
   }
 }
