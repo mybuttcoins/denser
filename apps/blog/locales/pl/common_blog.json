@@ -809,7 +809,8 @@
       "window": "OKNO"
     },
     "map": {
-      "hint": "Dotknij miejsca, aby tam podróżować"
+      "hint": "Dotknij miejsca, aby tam podróżować",
+      "in_community": "W: {{name}}"
     },
     "worlds": {
       "dhf_fun_park": "DHF Fun Park",

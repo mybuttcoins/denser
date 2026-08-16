@@ -906,7 +906,8 @@
       "window": "WINDOW"
     },
     "map": {
-      "hint": "Tap a landmark to travel there"
+      "hint": "Tap a landmark to travel there",
+      "in_community": "In: {{name}}"
     },
     "worlds": {
       "dhf_fun_park": "DHF Fun Park",

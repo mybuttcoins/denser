@@ -33,13 +33,16 @@ import {
   LANDMARKS,
   CLUSTERS,
   insideBody,
+  landmassAt,
   sampleBodyPoint,
   coastDistanceAt,
   communitySlots,
   rimPosition,
   landmarkPosition,
   bodyLandmarkIndexes,
-  clusterLandmarkIndexes
+  clusterLandmarkIndexes,
+  LANDMASS_COUNT,
+  LANDMASS_KEYS
 } from '../lib/fixed-world';
 import { MOVE } from './movement';
 
@@ -66,10 +69,34 @@ export interface GapReport {
   ratio: number;
 }
 
+/** Rail reachability measured WITHIN one landmass, never across a channel. */
+export interface LandmassReport {
+  key: string;
+  junctions: number;
+  houses: number;
+  /** Junctions reachable from the landmass's largest rail component. */
+  reachableJunctions: number;
+  reachableHouses: number;
+  /** True when every junction on this landmass is rail-reachable inside it. */
+  fullyConnected: boolean;
+}
+
+/** A measured channel between two landmasses. */
+export interface ChannelReport {
+  between: string;
+  gapPx: number;
+  /** gapPx / maxHopPx. Must sit in 1.5-3x for the channel to be a real wall. */
+  ratio: number;
+}
+
 export interface WorldStats {
   junctions: number;
   edges: number;
   crossings: number;
+  /** Per-landmass rail reachability. */
+  landmasses: LandmassReport[];
+  /** The channels between the landmasses, measured on the real rail lines. */
+  channels: ChannelReport[];
   /** Narrowest angle between two lines leaving any junction, whole graph. */
   minAngleDeg: number;
   houses: number;
@@ -495,37 +522,140 @@ export function buildWorld(windowStart: number, houseCount: number): GameWorld {
     if (n.kind === 'house' && reachableFromSpawn[n.id]) reachableHouses++;
   }
 
-  // Gap widths: for hop and wall clusters, the narrowest distance between
-  // any of the cluster's line points and any line outside the cluster.
+  // ---- Gap and channel widths, measured on the real rail lines. ----
+  //
+  // Every edge sample point goes into one spatial grid tagged with a group:
+  // its landmass, its cluster, or "spanning" for the trails and community
+  // spokes that bridge the two. Both the cluster gaps and the channels then
+  // fall out of the same nearest-other-group query. A pairwise scan over the
+  // point lists (what pass five did) is far too slow at this world size.
   const maxHopPx = simulateMaxHop();
-  const gaps: GapReport[] = [];
+  const GAP_CELL = 500;
+  const SPANNING = -1;
+  const clusterGroupOf = new Map<string, number>();
+  CLUSTERS.forEach((c, i) => clusterGroupOf.set(c.id, LANDMASS_COUNT + i));
+  const edgeGroup = new Array<number>(edges.length).fill(SPANNING);
   for (const cluster of CLUSTERS) {
-    if (cluster.link === 'trail') continue;
-    const own = new Set(edgesByCluster.get(cluster.id) ?? []);
+    for (const ei of edgesByCluster.get(cluster.id) ?? []) {
+      edgeGroup[ei] = clusterGroupOf.get(cluster.id) as number;
+    }
+  }
+  const nodeLand = nodes.map((n) => landmassAt(n.x, n.y));
+  for (const e of edges) {
+    if (edgeGroup[e.id] !== SPANNING) continue;
+    const la = nodeLand[e.a];
+    const lb = nodeLand[e.b];
+    if (la >= 0 && la === lb) edgeGroup[e.id] = la;
+  }
+
+  const gx: number[] = [];
+  const gy: number[] = [];
+  const gg: number[] = [];
+  const gridBuckets = new Map<number, number[]>();
+  const gKey = (cx: number, cy: number) => (cx + 32768) * 65536 + (cy + 32768);
+  for (const e of edges) {
+    const grp = edgeGroup[e.id];
+    for (let s = 0; s < e.pts.length; s += 2) {
+      const id = gx.length;
+      gx.push(e.pts[s]);
+      gy.push(e.pts[s + 1]);
+      gg.push(grp);
+      const k = gKey(Math.floor(e.pts[s] / GAP_CELL), Math.floor(e.pts[s + 1] / GAP_CELL));
+      const arr = gridBuckets.get(k);
+      if (arr) arr.push(id);
+      else gridBuckets.set(k, [id]);
+    }
+  }
+
+  /**
+   * Narrowest distance from any point of `from` to any point accepted by
+   * `accept`. Ring search outward per source point, stopping as soon as the
+   * ring itself is further away than the best found.
+   */
+  const nearestBetween = (from: number, accept: (g: number) => boolean): number => {
     let best = Infinity;
-    for (const ce of edges) {
-      if (!own.has(ce.id)) continue;
-      for (const oe of edges) {
-        if (own.has(oe.id)) continue;
-        // Cheap prefilter: midpoints further apart than the current best plus
-        // both half-lengths cannot contain a closer point pair.
-        const cm = Math.floor(ce.pts.length / 4) * 2;
-        const om = Math.floor(oe.pts.length / 4) * 2;
-        const midDist = Math.hypot(ce.pts[cm] - oe.pts[om], ce.pts[cm + 1] - oe.pts[om + 1]);
-        if (midDist - ce.len / 2 - oe.len / 2 > best) continue;
-        for (let s = 0; s < ce.pts.length; s += 2) {
-          for (let r = 0; r < oe.pts.length; r += 2) {
-            const d = Math.hypot(ce.pts[s] - oe.pts[r], ce.pts[s + 1] - oe.pts[r + 1]);
-            if (d < best) best = d;
+    for (let i = 0; i < gx.length; i++) {
+      if (gg[i] !== from) continue;
+      const cx = Math.floor(gx[i] / GAP_CELL);
+      const cy = Math.floor(gy[i] / GAP_CELL);
+      for (let ring = 0; ring < 40; ring++) {
+        if ((ring - 1) * GAP_CELL > best) break;
+        for (let ox = -ring; ox <= ring; ox++) {
+          for (let oy = -ring; oy <= ring; oy++) {
+            // Only the shell of each ring; the inside was covered already.
+            if (ring > 0 && Math.abs(ox) !== ring && Math.abs(oy) !== ring) continue;
+            const arr = gridBuckets.get(gKey(cx + ox, cy + oy));
+            if (!arr) continue;
+            for (const j of arr) {
+              if (!accept(gg[j])) continue;
+              const d = Math.hypot(gx[i] - gx[j], gy[i] - gy[j]);
+              if (d < best) best = d;
+            }
           }
         }
       }
     }
+    return best;
+  };
+
+  const gaps: GapReport[] = [];
+  for (const cluster of CLUSTERS) {
+    if (cluster.link === 'trail') continue;
+    const own = clusterGroupOf.get(cluster.id) as number;
+    const best = nearestBetween(own, (g) => g !== own);
     gaps.push({
       cluster: cluster.id,
       link: cluster.link,
       gapPx: Math.round(best),
       ratio: Math.round((best / maxHopPx) * 100) / 100
+    });
+  }
+
+  // The channels: landmass to landmass, on rail lines only.
+  const channels: ChannelReport[] = [];
+  for (let a = 0; a < LANDMASS_COUNT; a++) {
+    for (let b = a + 1; b < LANDMASS_COUNT; b++) {
+      const best = nearestBetween(a, (g) => g === b);
+      channels.push({
+        between: `${LANDMASS_KEYS[a]} | ${LANDMASS_KEYS[b]}`,
+        gapPx: Math.round(best),
+        ratio: Math.round((best / maxHopPx) * 100) / 100
+      });
+    }
+  }
+
+  // ---- Per-landmass rail reachability: measured INSIDE each landmass. ----
+  const landmasses: LandmassReport[] = [];
+  for (let land = 0; land < LANDMASS_COUNT; land++) {
+    const own = nodes.filter((n) => nodeLand[n.id] === land).map((n) => n.id);
+    const ownSet = new Set(own);
+    const seen = new Set<number>();
+    let bestComponent: number[] = [];
+    for (const start of own) {
+      if (seen.has(start)) continue;
+      const comp: number[] = [];
+      const stack = [start];
+      seen.add(start);
+      while (stack.length) {
+        const v = stack.pop() as number;
+        comp.push(v);
+        for (const ei of incident[v]) {
+          const e = edges[ei];
+          const o = e.a === v ? e.b : e.a;
+          if (!ownSet.has(o) || seen.has(o)) continue;
+          seen.add(o);
+          stack.push(o);
+        }
+      }
+      if (comp.length > bestComponent.length) bestComponent = comp;
+    }
+    landmasses.push({
+      key: LANDMASS_KEYS[land],
+      junctions: own.length,
+      houses: own.filter((id) => nodes[id].kind === 'house').length,
+      reachableJunctions: bestComponent.length,
+      reachableHouses: bestComponent.filter((id) => nodes[id].kind === 'house').length,
+      fullyConnected: bestComponent.length === own.length
     });
   }
 
@@ -545,6 +675,8 @@ export function buildWorld(windowStart: number, houseCount: number): GameWorld {
       junctions: nodes.length,
       edges: edges.length,
       crossings: finalCross.count,
+      landmasses,
+      channels,
       minAngleDeg: Math.round(minAngleDeg * 10) / 10,
       houses: occupied,
       reachableHouses,

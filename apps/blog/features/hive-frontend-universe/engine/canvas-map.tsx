@@ -25,7 +25,9 @@ import { WORLD, LANDMARKS, LANDMARK_ACCOUNTS } from '../lib/fixed-world';
 import { buildRoutes } from '../lib/routes';
 import { buildWorld, type GameWorld } from './world';
 import { createCritters, updateCritters, type CritterState } from './critters';
+import { buildGround } from './ground';
 import { requestAvatar, avatarStats } from './avatars';
+import { getUserAvatarUrl } from '@ui/lib/avatar-utils';
 import {
   createPlayer,
   driftUpdate,
@@ -73,7 +75,7 @@ const CanvasMap = () => {
 };
 
 const Centered = ({ children }: { children: React.ReactNode }) => (
-  <div className="flex h-full w-full items-center justify-center bg-[#04070f] p-6 text-center text-sm text-[#8fa6b4]">
+  <div className="flex h-full w-full items-center justify-center bg-[#04030a] p-6 text-center text-sm text-[#8fa6b4]">
     {children}
   </div>
 );
@@ -87,6 +89,8 @@ const Stage = ({ board }: { board: Board }) => {
   /** A house opened by clicking/tapping its marker (bigger than the marker). */
   const [clickedNode, setClickedNode] = useState(-1);
   const [fullMap, setFullMap] = useState(false);
+  /** Slot of the community bubble the bug is standing in, or -1 for none. */
+  const [inCommunity, setInCommunity] = useState(-1);
 
   const world: GameWorld = useMemo(
     () => buildWorld(board.windowStart, board.houses.length),
@@ -95,6 +99,8 @@ const Stage = ({ board }: { board: Board }) => {
   // The routes seam: named edge-id lists riding ON the mesh, no new geometry.
   const routes = useMemo(() => buildRoutes(world), [world]);
   const routeEdgeSet = useMemo(() => new Set(routes.flatMap((r) => r.edgeIds)), [routes]);
+  // The ground: filled landmasses, built ONCE per window and then only filled.
+  const ground = useMemo(() => buildGround(board.windowStart), [board.windowStart]);
 
   const houseVisuals: (HouseVisual | undefined)[] = useMemo(
     () =>
@@ -113,7 +119,7 @@ const Stage = ({ board }: { board: Board }) => {
         label: t(lm.labelKey),
         category: lm.category,
         icon: lm.icon,
-        world: lm.world,
+        big: lm.big,
         handle: LANDMARK_ACCOUNTS[lm.id]
       })),
     [t]
@@ -147,6 +153,7 @@ const Stage = ({ board }: { board: Board }) => {
   const flowsRef = useRef<FlowState | null>(null);
   const crittersRef = useRef<CritterState | null>(null);
   const atNodeTick = useRef(-1);
+  const inCommunityTick = useRef(-1);
   const mKeyDownAt = useRef(0);
 
   const factories = useMemo(() => placeFactories(world, board.windowStart), [world, board.windowStart]);
@@ -432,6 +439,26 @@ const Stage = ({ board }: { board: Board }) => {
         setAtNode(p.atNode);
       }
 
+      // YOU ARE HERE: which community bubble the bug is standing in. Bubbles
+      // overlap, so the SMALLEST containing one wins, which is the innermost.
+      // Display only; it drives the banner and brightens that one bubble.
+      let inside = -1;
+      let innermost = Infinity;
+      for (const n of nodes) {
+        if (n.kind !== 'community') continue;
+        const c = communityVisualsRef.current[n.ref];
+        if (!c) continue;
+        if (Math.hypot(n.x - p.x, n.y - p.y) > c.radius) continue;
+        if (c.radius < innermost) {
+          innermost = c.radius;
+          inside = n.ref;
+        }
+      }
+      if (inside !== inCommunityTick.current) {
+        inCommunityTick.current = inside;
+        setInCommunity(inside);
+      }
+
       const zPlay = playZ();
       const zFit = fitZ();
       const mapness = Math.max(0, Math.min(1, (zPlay - camRef.current.z) / Math.max(zPlay - zFit, 0.001)));
@@ -456,6 +483,8 @@ const Stage = ({ board }: { board: Board }) => {
         traffic: trafficRef.current,
         routeEdges: routeEdgeSet,
         critters: crittersRef.current,
+        ground,
+        activeCommunity: inCommunityTick.current,
         player: p,
         time: ts / 1000,
         tierColors: TIERS.map((tier) => tier.col),
@@ -508,7 +537,7 @@ const Stage = ({ board }: { board: Board }) => {
     // Visual arrays are read via closure each frame; the world identity is
     // what must rebuild the loop.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [world, board, factories, cubes, flowCfg]);
+  }, [world, board, factories, cubes, flowCfg, ground]);
 
   const skip = () => {
     const p = playerRef.current;
@@ -528,11 +557,14 @@ const Stage = ({ board }: { board: Board }) => {
   const atLandmark = node?.kind === 'landmark' && clickedNode < 0 ? LANDMARKS[node.ref] : null;
   const atCommunity: TopCommunity | null =
     node?.kind === 'community' && clickedNode < 0 && communities ? communities[node.ref] ?? null : null;
+  /** The community the bug is standing in, for the "You are here" banner. */
+  const insideCommunity: TopCommunity | null =
+    inCommunity >= 0 && communities ? communities[inCommunity] ?? null : null;
 
   return (
     <div
       ref={wrapRef}
-      className="relative h-full w-full select-none overflow-hidden bg-[#04070f] touch-none"
+      className="relative h-full w-full select-none overflow-hidden bg-[#04030a] touch-none"
       data-testid="hfu-map"
     >
       <canvas ref={canvasRef} className="absolute inset-0 block" />
@@ -540,6 +572,25 @@ const Stage = ({ board }: { board: Board }) => {
       {fullMap ? (
         <div className="pointer-events-none absolute inset-x-0 top-3 mx-auto w-fit rounded-full bg-black/50 px-4 py-1.5 font-mono text-xs text-[#8fd8e4]">
           {t('hive_frontend_universe.map.hint')}
+        </div>
+      ) : null}
+
+      {/*
+        YOU ARE HERE. When the bug is standing inside a community bubble, that
+        community is named here with its real avatar. Innermost bubble wins;
+        nothing shows when the bug is in none. Display only, no buttons.
+      */}
+      {!fullMap && insideCommunity ? (
+        <div className="pointer-events-none absolute inset-x-0 top-3 mx-auto flex w-fit items-center gap-2 rounded-full bg-black/60 px-3 py-1.5 font-mono text-xs text-[#bfe9ff]">
+          {/* eslint-disable-next-line @next/next/no-img-element -- avatar via the app's own proxied avatar route */}
+          <img
+            src={getUserAvatarUrl(insideCommunity.name, 'small')}
+            alt=""
+            width={20}
+            height={20}
+            className="h-5 w-5 shrink-0 rounded-full bg-white/10 object-cover"
+          />
+          <span>{t('hive_frontend_universe.map.in_community', { name: insideCommunity.title })}</span>
         </div>
       ) : null}
 

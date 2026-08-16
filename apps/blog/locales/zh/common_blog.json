@@ -804,7 +804,8 @@
       "window": "窗口"
     },
     "map": {
-      "hint": "点按地标即可前往"
+      "hint": "点按地标即可前往",
+      "in_community": "所在: {{name}}"
     },
     "worlds": {
       "dhf_fun_park": "DHF Fun Park",

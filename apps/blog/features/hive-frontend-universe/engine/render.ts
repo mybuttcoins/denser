@@ -26,12 +26,18 @@ import type { LandmarkCategory, IconKey } from '../lib/fixed-world';
 import { drawIcon, drawFish, drawBugMark } from './icons';
 import { drawCritters } from './critters';
 import { avatarImage } from './avatars';
+import { drawGround, GROUND_VOID, type Ground } from './ground';
 
 export const PALETTE = {
-  bg: '#04070f',
+  bg: GROUND_VOID,
   star: '#9fb6d8',
-  mesh: '#3f7396',
-  spoke: '#8a76c9',
+  /**
+   * Ordinary lines are STREETS, NOT STARS: dim and desaturated so they sit on
+   * the terrain instead of floating over it. The post line and the landmarks
+   * are what the eye should catch.
+   */
+  mesh: '#5d7f96',
+  spoke: '#8877ad',
   junction: '#5b7c92',
   newRing: '#5df0ff',
   traffic: '#9fd6e4',
@@ -44,9 +50,21 @@ export const PALETTE = {
   hiveBlack: '#212529',
   board: '#123',
   boardLit: '#5df0ff',
-  /** The post line: one warm saturated colour, unmistakably a transit line. */
-  route: '#ff9d2b',
-  routeGlow: '#ff7a1f'
+  /**
+   * THE POST LINE. Pass five drew this in warm orange, which worked on black
+   * but dies on the pass-six ground: the terrain is now deep warm red, so an
+   * orange line sits in the same hue family as the land it crosses and stops
+   * reading as a separate thing.
+   *
+   * Re-picked as GOLD. Every region tone is dark and desaturated, so luminance
+   * is what separates the line from the ground, and gold is the brightest of
+   * the warm options by a distance. Gold also leaves the cool end of the
+   * palette alone, which matters: the newcomer rings, the community bubbles
+   * and the bug's surfboard are all cyan already, and a cyan post line would
+   * have collided with the very markers that sit on it like stations.
+   */
+  route: '#ffc83a',
+  routeGlow: '#ffe9a8'
 } as const;
 
 export const ACCENT_HEX: Record<string, string> = {
@@ -69,6 +87,32 @@ export const CATEGORY_HEX: Record<LandmarkCategory, string> = {
 
 const CUBE_HEX = ['#5EE9D5', '#B79CFF', '#FFC24D', '#FF90AE', '#7fb8ff'];
 
+/**
+ * The big five: shared half-footprint on the map, world px. Everything about
+ * their presence (light pool, label clearance) keys off this one number.
+ */
+const BIG_SPAN = 330;
+
+/**
+ * Per-icon half-size for the big five. Each icon function applies its own
+ * internal scale factor, so a single shared number would render them at wildly
+ * different sizes; these are tuned so all five land at roughly the same
+ * footprint, about 650-670 world px across.
+ *
+ * That footprint is a compromise measured in the browser rather than guessed.
+ * At the first try (about 950 px) they read well on the pulled-out map but
+ * filled half the screen at play zoom, which was overwhelming. At this size
+ * they still tower over an ordinary marker, which is roughly 160 world px
+ * across at map zoom, by about four times.
+ */
+const BIG_SIZE: Partial<Record<IconKey, number>> = {
+  ferris: 150,
+  towers: 168,
+  arcadebldg: 133,
+  blackhole: 119,
+  tent: 350
+};
+
 const FLOW_STYLE: Record<FlowParticle['type'], { col: string; size: number }> = {
   vote: { col: '#cdf6ff', size: 3 },
   customJson: { col: '#ffd75e', size: 5.5 },
@@ -89,8 +133,11 @@ export interface LandmarkVisual {
   category: LandmarkCategory;
   /** Which vector icon to draw (the icon seam lives in engine/icons.ts). */
   icon: IconKey;
-  /** True for the big destination worlds, drawn as structures. */
-  world?: boolean;
+  /**
+   * The BIG FIVE: drawn as oversized illustrations, several times larger than
+   * any other marker, so they are visible instantly at map zoom.
+   */
+  big?: boolean;
   /** Real Hive account whose avatar this landmark wears, if it has one. */
   handle?: string;
 }
@@ -153,6 +200,10 @@ export interface RenderScene {
   routeEdges: Set<number>;
   /** The inert population; its whole seam lives in engine/critters.ts. */
   critters: CritterState | null;
+  /** The filled landmasses under everything; built once per window. */
+  ground: Ground | null;
+  /** Slot of the community bubble the bug is standing in, or -1. Display only. */
+  activeCommunity: number;
   player: PlayerState;
   time: number;
   tierColors: string[];
@@ -270,6 +321,14 @@ export function drawScene(scene: RenderScene): void {
     }
   }
 
+  // THE GROUND. Filled landmasses, drawn over the void (and over the stars and
+  // fish, which belong to the open water) and under everything else. The
+  // geometry was built once per window; this only fills stored paths, culled
+  // to the viewport.
+  if (scene.ground) {
+    drawGround(ctx, scene.ground, vx0, vy0, vx1, vy1, z);
+  }
+
   // Cubes: transparent, colourful, under the lines for depth.
   for (const c of scene.cubes) {
     if (!vis(c.x, c.y)) continue;
@@ -291,8 +350,9 @@ export function drawScene(scene: RenderScene): void {
   };
   for (const kind of ['mesh', 'spoke'] as const) {
     ctx.strokeStyle = kind === 'mesh' ? PALETTE.mesh : PALETTE.spoke;
-    ctx.lineWidth = (kind === 'mesh' ? 2.6 : 2.2) / Math.max(z, 0.05);
-    ctx.globalAlpha = kind === 'mesh' ? 0.85 : 0.8;
+    ctx.lineWidth = (kind === 'mesh' ? 2.2 : 2.0) / Math.max(z, 0.05);
+    // Dim: streets on the terrain, not stars over it.
+    ctx.globalAlpha = kind === 'mesh' ? 0.42 : 0.4;
     for (const e of edges) {
       if (e.kind !== kind || !edgeVis(e)) continue;
       strokeEdge(e);
@@ -303,11 +363,21 @@ export function drawScene(scene: RenderScene): void {
   // THE POST LINE: the first subway route. A labeled subset of the mesh
   // edges drawn noticeably thicker in one warm saturated colour, with a soft
   // under-glow, clearly distinct from ordinary lines at both zooms.
+  //
+  // Three passes, which is what guarantees the line reads against EVERY region
+  // it crosses rather than just against the average one: a dark casing that
+  // separates it from whatever tone is underneath, a soft glow, then the gold
+  // core on top.
   if (scene.routeEdges.size) {
-    for (const pass of [0, 1]) {
-      ctx.strokeStyle = pass === 0 ? PALETTE.routeGlow : PALETTE.route;
-      ctx.lineWidth = (pass === 0 ? 11 : 6.2) / Math.max(z, 0.05);
-      ctx.globalAlpha = pass === 0 ? 0.22 : 0.95;
+    const routePass = [
+      { col: '#1a0d05', w: 13.5, a: 0.85 },
+      { col: PALETTE.routeGlow, w: 10, a: 0.3 },
+      { col: PALETTE.route, w: 6.8, a: 1 }
+    ];
+    for (const p of routePass) {
+      ctx.strokeStyle = p.col;
+      ctx.lineWidth = p.w / Math.max(z, 0.05);
+      ctx.globalAlpha = p.a;
       for (const e of edges) {
         if (!scene.routeEdges.has(e.id) || !edgeVis(e)) continue;
         strokeEdge(e);
@@ -522,7 +592,26 @@ export function drawScene(scene: RenderScene): void {
     if (!lm) continue;
     const col = CATEGORY_HEX[lm.category];
     const minor = lm.icon === 'doc' || lm.icon === 'docq';
-    const s = lm.world ? 95 : (minor ? 24 : 36) / Math.max(z, 0.45);
+    // The big five are drawn at a fixed WORLD size, several times any other
+    // marker, so they stay huge on the pulled-out map. Everything else is
+    // sized in screen space and stays modest, which is what makes the five
+    // stand out instead of competing.
+    const s = lm.big ? (BIG_SIZE[lm.icon] ?? 300) : (minor ? 24 : 36) / Math.max(z, 0.45);
+    // The black hole is the one big place that must NOT look welcoming, so it
+    // is the one that does not get the warm pool.
+    if (lm.big && lm.icon !== 'blackhole') {
+      // A soft warm pool of light under each big place, so it sits ON the
+      // terrain rather than floating above it. The pool uses the shared
+      // footprint, not `s`, so all five are lit alike.
+      const py = n.y + BIG_SPAN * 0.45;
+      const pool = ctx.createRadialGradient(n.x, py, BIG_SPAN * 0.1, n.x, py, BIG_SPAN * 1.5);
+      pool.addColorStop(0, 'rgba(255, 196, 120, 0.16)');
+      pool.addColorStop(1, 'rgba(255, 170, 90, 0)');
+      ctx.fillStyle = pool;
+      ctx.beginPath();
+      ctx.arc(n.x, py, BIG_SPAN * 1.5, 0, 6.283);
+      ctx.fill();
+    }
     // A landmark with a real Hive account wears that account's avatar once
     // it has loaded; otherwise (and meanwhile) its code-drawn icon.
     const lmImg = lm.handle ? avatarImage(lm.handle) : null;
@@ -542,7 +631,7 @@ export function drawScene(scene: RenderScene): void {
     } else {
       drawIcon(ctx, lm.icon, n.x, n.y, s, col, time);
     }
-    const clearance = lm.world ? 230 : s * 1.6;
+    const clearance = lm.big ? BIG_SPAN * 1.15 : s * 1.6;
     if (mapLabels) {
       labelQueue.push({
         x: n.x,
@@ -550,7 +639,7 @@ export function drawScene(scene: RenderScene): void {
         under: clearance,
         text: lm.label,
         color: col,
-        priority: lm.world ? 5 : minor ? 2 : 3
+        priority: lm.big ? 6 : minor ? 2 : 3
       });
     } else {
       const fs = Math.min(13 / z, 400);
@@ -566,14 +655,17 @@ export function drawScene(scene: RenderScene): void {
     const c = scene.communities[n.ref];
     if (!c) continue;
     const beat = 0.5 + Math.sin(time * 1.3 + n.ref) * 0.5;
-    ctx.fillStyle = '#7fd8ff';
-    ctx.globalAlpha = 0.1 + beat * 0.05;
+    // The bubble the bug is standing in brightens, so "you are here" is
+    // visible on the map itself and not only in the banner.
+    const here = n.ref === scene.activeCommunity;
+    ctx.fillStyle = here ? '#a8e8ff' : '#7fd8ff';
+    ctx.globalAlpha = here ? 0.3 + beat * 0.12 : 0.1 + beat * 0.05;
     ctx.beginPath();
     ctx.arc(n.x, n.y, c.radius, 0, 6.283);
     ctx.fill();
-    ctx.globalAlpha = 0.5;
-    ctx.strokeStyle = '#7fd8ff';
-    ctx.lineWidth = 2.4 / Math.max(z, 0.08);
+    ctx.globalAlpha = here ? 1 : 0.5;
+    ctx.strokeStyle = here ? '#d8f4ff' : '#7fd8ff';
+    ctx.lineWidth = (here ? 4.4 : 2.4) / Math.max(z, 0.08);
     ctx.beginPath();
     ctx.arc(n.x, n.y, c.radius, 0, 6.283);
     ctx.stroke();

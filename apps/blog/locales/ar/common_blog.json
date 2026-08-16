@@ -851,7 +851,8 @@
       "window": "النافذة"
     },
     "map": {
-      "hint": "انقر على معلم للسفر إليه"
+      "hint": "انقر على معلم للسفر إليه",
+      "in_community": "في: {{name}}"
     },
     "worlds": {
       "dhf_fun_park": "DHF Fun Park",

@@ -145,6 +145,9 @@ export function drawBugMark(ctx: CanvasRenderingContext2D, x: number, y: number,
 /** The sticker outline colour shared by the chunky code-drawn places. */
 const STICKER_OUTLINE = '#160f1d';
 
+/** Fairground colours for the DHF Fun Park gondolas. */
+const GONDOLA_HEX = ['#ff4d6d', '#ffd75e', '#48d17a', '#3fb6ff', '#ff9d4d', '#c77dff'];
+
 /**
  * Landmark icons. `s` is the icon's rough half-size in world px; `col` is the
  * category colour; `time` drives small idle animations (pulses, blinks).
@@ -177,23 +180,9 @@ export function drawIcon(
     case 'arcadebldg':
       drawArcade(ctx, x, y, s * 2.2, col, time);
       break;
-    case 'blackhole': {
-      // A black hole: dark core, bright accretion ring, infalling wisps.
-      ctx.fillStyle = '#05070d';
-      ctx.beginPath();
-      ctx.arc(x, y, s * 0.55, 0, 6.283);
-      ctx.fill();
-      ctx.strokeStyle = col;
-      ctx.beginPath();
-      ctx.arc(x, y, s * 0.75, time * 0.4, time * 0.4 + 4.6);
-      ctx.stroke();
-      ctx.globalAlpha = 0.5;
-      ctx.beginPath();
-      ctx.arc(x, y, s * 1.05, -time * 0.25, -time * 0.25 + 3.6);
-      ctx.stroke();
-      ctx.globalAlpha = 1;
+    case 'blackhole':
+      drawBlackHole(ctx, x, y, s * 1.5, time);
       break;
-    }
     case 'spaceship': {
       // Small rocket in flight.
       ctx.beginPath();
@@ -329,7 +318,10 @@ export function drawIcon(
       // Basecamp: chunky sticker tent. Thick dark outline, flat bright fill,
       // dark door slit, red pennant.
       ctx.strokeStyle = STICKER_OUTLINE;
-      ctx.lineWidth = Math.max(3, s * 0.16);
+      // 0.16 was tuned for the small marker; at big-five size it produced a
+      // 56px outline that swallowed the tent, so the ratio is now in line with
+      // the other chunky places (about 0.075 of the half-width).
+      ctx.lineWidth = Math.max(3, s * 0.075);
       ctx.beginPath();
       ctx.moveTo(x - s * 0.95, y + s * 0.62);
       ctx.lineTo(x, y - s * 0.72);
@@ -350,6 +342,19 @@ export function drawIcon(
       ctx.closePath();
       ctx.fillStyle = '#3b2a14';
       ctx.fill();
+      // Warm lamplight spilling out of the doorway, gently breathing. This is
+      // meant to be the friendliest thing on the map, so it is the only place
+      // that is visibly lit from the inside.
+      ctx.save();
+      ctx.clip();
+      const lamp = 0.72 + Math.sin(time * 1.6) * 0.28;
+      const spill = ctx.createRadialGradient(x, y + s * 0.5, s * 0.02, x, y + s * 0.5, s * 0.62);
+      spill.addColorStop(0, `rgba(255, 214, 130, ${0.85 * lamp})`);
+      spill.addColorStop(0.55, `rgba(255, 170, 70, ${0.35 * lamp})`);
+      spill.addColorStop(1, 'rgba(255, 150, 60, 0)');
+      ctx.fillStyle = spill;
+      ctx.fillRect(x - s, y - s, s * 2, s * 2);
+      ctx.restore();
       // Pennant, fluttering.
       ctx.beginPath();
       ctx.moveTo(x, y - s * 0.72);
@@ -478,10 +483,17 @@ function drawFerris(
     ctx.moveTo(x, y);
     ctx.lineTo(cx, cy);
     ctx.stroke();
-    // Cars: flat amber pods with the dark outline, hanging below the rim.
+    // Gondolas: flat pods in mixed fairground colours, each with the dark
+    // outline, hanging below the rim and always swinging level.
     ctx.beginPath();
-    ctx.arc(cx, cy + R * 0.11, R * 0.13, 0, 6.283);
-    ctx.fillStyle = '#FFC24D';
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(cx, cy + R * 0.09);
+    ctx.strokeStyle = STICKER_OUTLINE;
+    ctx.lineWidth = lw * 0.5;
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(cx, cy + R * 0.17, R * 0.13, 0, 6.283);
+    ctx.fillStyle = GONDOLA_HEX[i % GONDOLA_HEX.length];
     ctx.fill();
     ctx.strokeStyle = STICKER_OUTLINE;
     ctx.lineWidth = lw * 0.7;
@@ -594,6 +606,134 @@ function drawLaunchpad(
   ctx.globalAlpha = 1;
 }
 
+/**
+ * THE DEVELOPER PORTAL: a black hole, one of the big five.
+ *
+ * Dark core, two COUNTER-ROTATING glowing accretion rings around it, and faint
+ * particles spiralling inward. Cool colours and deliberately a little ominous:
+ * this is the one place on the map that does not look friendly.
+ *
+ * The rings are drawn as many short arc segments of varying alpha rather than
+ * one stroked circle, which is what makes them read as moving matter instead
+ * of as a drawn outline.
+ */
+function drawBlackHole(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  R: number,
+  time: number
+): void {
+  ctx.save();
+
+  // Outer halo: the light being bent around it.
+  const halo = ctx.createRadialGradient(x, y, R * 0.5, x, y, R * 1.9);
+  halo.addColorStop(0, 'rgba(90, 170, 255, 0.30)');
+  halo.addColorStop(0.5, 'rgba(70, 110, 220, 0.13)');
+  halo.addColorStop(1, 'rgba(40, 60, 150, 0)');
+  ctx.fillStyle = halo;
+  ctx.beginPath();
+  ctx.arc(x, y, R * 1.9, 0, 6.283);
+  ctx.fill();
+
+  // Infalling particles: seeded specks on inward spirals, cool and faint.
+  for (let i = 0; i < 26; i++) {
+    const seed = i * 2.399963;
+    // Each particle runs its own inward pass, wrapping when it reaches the core.
+    const phase = (time * 0.16 + i / 26) % 1;
+    const rad = R * (1.85 - phase * 1.25);
+    const ang = seed + phase * 5.4 + time * 0.5;
+    const px = x + Math.cos(ang) * rad;
+    const py = y + Math.sin(ang) * rad * 0.42;
+    ctx.globalAlpha = 0.15 + (1 - phase) * 0.5;
+    ctx.fillStyle = i % 3 === 0 ? '#bfe4ff' : '#6fa8ff';
+    ctx.beginPath();
+    ctx.arc(px, py, R * 0.028, 0, 6.283);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+
+  // The two accretion rings, counter-rotating. Drawn flattened, one tilted
+  // against the other, in segments so the brightness varies around each.
+  const rings = [
+    { r: R * 1.28, squash: 0.34, spin: time * 0.55, tilt: -0.22, col: '#7fc4ff', w: R * 0.13 },
+    { r: R * 0.98, squash: 0.46, spin: -time * 0.42, tilt: 0.3, col: '#9d8bff', w: R * 0.1 }
+  ];
+  for (const ring of rings) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(ring.tilt);
+    ctx.scale(1, ring.squash);
+    ctx.lineCap = 'butt';
+    const SEG = 44;
+    for (let i = 0; i < SEG; i++) {
+      const a0 = (i / SEG) * 6.283 + ring.spin;
+      const a1 = ((i + 1.05) / SEG) * 6.283 + ring.spin;
+      // Brightest on one side, like matter heated as it swings around.
+      const b = 0.5 + Math.sin(a0 * 1 - ring.spin * 0.5) * 0.5;
+      ctx.globalAlpha = 0.22 + b * 0.72;
+      ctx.strokeStyle = ring.col;
+      ctx.lineWidth = ring.w * (0.6 + b * 0.7);
+      ctx.beginPath();
+      ctx.arc(0, 0, ring.r, a0, a1);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+  ctx.globalAlpha = 1;
+
+  // The core: flat black with a hard rim, so it reads as a hole punched in
+  // the world rather than as a dark ball.
+  const core = ctx.createRadialGradient(x, y, R * 0.3, x, y, R * 0.78);
+  core.addColorStop(0, '#000000');
+  core.addColorStop(0.72, '#02030a');
+  core.addColorStop(1, 'rgba(20, 30, 70, 0)');
+  ctx.fillStyle = core;
+  ctx.beginPath();
+  ctx.arc(x, y, R * 0.78, 0, 6.283);
+  ctx.fill();
+  ctx.fillStyle = '#000000';
+  ctx.beginPath();
+  ctx.arc(x, y, R * 0.52, 0, 6.283);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(150, 200, 255, 0.55)';
+  ctx.lineWidth = Math.max(1.5, R * 0.03);
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+/** Rounded rectangle path helper for the chunky sticker places. */
+function roundRect(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  r: number
+): void {
+  const rr = Math.min(r, Math.abs(w) / 2, Math.abs(h) / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + rr, y);
+  ctx.lineTo(x + w - rr, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + rr);
+  ctx.lineTo(x + w, y + h - rr);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - rr, y + h);
+  ctx.lineTo(x + rr, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - rr);
+  ctx.lineTo(x, y + rr);
+  ctx.quadraticCurveTo(x, y, x + rr, y);
+  ctx.closePath();
+}
+
+/**
+ * THE ARCADE: a classic arcade cabinet seen straight on, one of the big five.
+ *
+ * Rounded marquee header with a colour stripe on top; below it a screen
+ * showing a tiny wavy landscape in bright sky blue and green; below the screen
+ * a control deck with two red-ball joysticks and rows of small yellow and blue
+ * buttons. Chunky black outlines, flat bright fills, sparkles floating around.
+ */
 function drawArcade(
   ctx: CanvasRenderingContext2D,
   x: number,
@@ -602,45 +742,145 @@ function drawArcade(
   col: string,
   time: number
 ): void {
-  // Chunky sticker arcade: flat rose building, scalloped awning, hot marquee.
-  const lw = Math.max(4, R * 0.08);
+  const lw = Math.max(4, R * 0.07);
   ctx.strokeStyle = STICKER_OUTLINE;
   ctx.lineWidth = lw;
-  // Building.
-  ctx.fillStyle = col;
-  ctx.fillRect(x - R * 0.9, y - R * 0.5, R * 1.8, R * 1.2);
-  ctx.strokeRect(x - R * 0.9, y - R * 0.5, R * 1.8, R * 1.2);
-  // Awning: filled scallops, alternating white and rose.
-  for (let i = 0; i < 4; i++) {
-    const ax = x - R * 0.9 + (i * R * 1.8) / 4;
+  ctx.lineJoin = 'round';
+
+  const W = R * 1.5; // cabinet width
+  const left = x - W / 2;
+
+  // Cabinet body: one tall rounded slab in flat cabinet red.
+  ctx.fillStyle = '#d8365a';
+  roundRect(ctx, left, y - R * 1.18, W, R * 2.32, R * 0.16);
+  ctx.fill();
+  ctx.stroke();
+
+  // Side panel highlight, so the slab reads as a three dimensional cabinet
+  // without resorting to gradients.
+  ctx.fillStyle = '#ef5c7c';
+  roundRect(ctx, left + W * 0.06, y - R * 1.1, W * 0.16, R * 2.14, R * 0.1);
+  ctx.fill();
+
+  // Marquee header: rounded, bright, with a colour stripe across it.
+  const mY = y - R * 1.1;
+  const mH = R * 0.44;
+  ctx.fillStyle = '#ffd75e';
+  roundRect(ctx, left + W * 0.04, mY, W * 0.92, mH, R * 0.13);
+  ctx.fill();
+  ctx.stroke();
+  const stripe = ['#ff4d6d', '#ffa63d', '#48d17a', '#3fb6ff'];
+  const sw = (W * 0.84) / stripe.length;
+  for (let i = 0; i < stripe.length; i++) {
+    ctx.fillStyle = stripe[i];
+    ctx.fillRect(left + W * 0.08 + i * sw, mY + mH * 0.58, sw, mH * 0.26);
+  }
+  ctx.strokeRect(left + W * 0.08, mY + mH * 0.58, W * 0.84, mH * 0.26);
+
+  // The screen: dark bezel, then a tiny wavy landscape inside it.
+  const scX = left + W * 0.11;
+  const scY = y - R * 0.54;
+  const scW = W * 0.78;
+  const scH = R * 0.78;
+  ctx.fillStyle = '#140a1c';
+  roundRect(ctx, scX - lw, scY - lw, scW + lw * 2, scH + lw * 2, R * 0.08);
+  ctx.fill();
+  ctx.stroke();
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(scX, scY, scW, scH);
+  ctx.clip();
+  // Sky.
+  ctx.fillStyle = '#5fd0ff';
+  ctx.fillRect(scX, scY, scW, scH);
+  // Two green hill bands, gently waving.
+  for (let band = 0; band < 2; band++) {
+    ctx.fillStyle = band === 0 ? '#43c268' : '#2c9c4c';
     ctx.beginPath();
-    ctx.moveTo(ax, y - R * 0.5);
-    ctx.quadraticCurveTo(ax + R * 0.225, y - R * 0.18, ax + R * 0.45, y - R * 0.5);
+    ctx.moveTo(scX, scY + scH);
+    const baseY = scY + scH * (0.52 + band * 0.22);
+    for (let i = 0; i <= 12; i++) {
+      const t = i / 12;
+      const px = scX + t * scW;
+      const py = baseY + Math.sin(t * 6.283 * 1.5 + time * 0.9 + band * 2) * scH * 0.09;
+      if (i === 0) ctx.lineTo(px, py);
+      else ctx.lineTo(px, py);
+    }
+    ctx.lineTo(scX + scW, scY + scH);
     ctx.closePath();
-    ctx.fillStyle = i % 2 === 0 ? '#ffffff' : '#e06a8c';
     ctx.fill();
+  }
+  ctx.restore();
+
+  // Control deck: an angled shelf with two joysticks and rows of buttons.
+  const dY = y + R * 0.42;
+  ctx.fillStyle = '#2b1730';
+  roundRect(ctx, left + W * 0.02, dY, W * 0.96, R * 0.42, R * 0.08);
+  ctx.fill();
+  ctx.stroke();
+  for (const side of [-1, 1]) {
+    const jx = x + side * W * 0.3;
+    // Stick.
+    ctx.strokeStyle = STICKER_OUTLINE;
+    ctx.lineWidth = lw * 1.1;
+    ctx.beginPath();
+    ctx.moveTo(jx, dY + R * 0.26);
+    ctx.lineTo(jx + side * R * 0.05, dY - R * 0.1);
+    ctx.stroke();
+    // Red ball on top.
+    ctx.beginPath();
+    ctx.arc(jx + side * R * 0.05, dY - R * 0.15, R * 0.11, 0, 6.283);
+    ctx.fillStyle = '#ff3b57';
+    ctx.fill();
+    ctx.lineWidth = lw * 0.8;
     ctx.stroke();
   }
-  // Door (dark) and two cyan screens, flat.
-  ctx.fillStyle = '#2a1030';
-  ctx.fillRect(x - R * 0.25, y + R * 0.1, R * 0.5, R * 0.6);
-  ctx.strokeRect(x - R * 0.25, y + R * 0.1, R * 0.5, R * 0.6);
-  ctx.fillStyle = '#5EE9D5';
-  ctx.fillRect(x - R * 0.7, y - R * 0.25, R * 0.35, R * 0.28);
-  ctx.strokeRect(x - R * 0.7, y - R * 0.25, R * 0.35, R * 0.28);
-  ctx.fillRect(x + R * 0.35, y - R * 0.25, R * 0.35, R * 0.28);
-  ctx.strokeRect(x + R * 0.35, y - R * 0.25, R * 0.35, R * 0.28);
-  // Marquee: flat amber, pulsing bulbs.
-  ctx.fillStyle = '#FFC24D';
-  ctx.fillRect(x - R * 0.95, y - R * 0.95, R * 1.9, R * 0.38);
-  ctx.strokeRect(x - R * 0.95, y - R * 0.95, R * 1.9, R * 0.38);
-  const glow = 0.55 + Math.sin(time * 2.6) * 0.45;
-  ctx.fillStyle = '#ffffff';
-  ctx.globalAlpha = 0.35 + glow * 0.6;
-  for (let i = 0; i < 5; i++) {
+  // Button rows: small yellow and blue.
+  for (let row = 0; row < 2; row++) {
+    for (let i = 0; i < 3; i++) {
+      const bx = x - W * 0.1 + i * R * 0.15;
+      const by = dY + R * 0.12 + row * R * 0.16;
+      ctx.beginPath();
+      ctx.arc(bx, by, R * 0.05, 0, 6.283);
+      ctx.fillStyle = row === 0 ? '#ffd75e' : '#3fb6ff';
+      ctx.fill();
+      ctx.lineWidth = lw * 0.5;
+      ctx.stroke();
+    }
+  }
+
+  // Coin slot and a dark base plinth.
+  ctx.fillStyle = '#140a1c';
+  ctx.fillRect(x - R * 0.06, y + R * 0.95, R * 0.12, R * 0.05);
+  ctx.fillStyle = '#7d1c33';
+  roundRect(ctx, left + W * 0.06, y + R * 1.06, W * 0.88, R * 0.16, R * 0.05);
+  ctx.fill();
+  ctx.lineWidth = lw;
+  ctx.stroke();
+
+  // Sparkles floating around the cabinet: four-point stars, gently twinkling.
+  const spark = [
+    [-0.72, -1.12, 0.075],
+    [0.74, -0.92, 0.06],
+    [-0.78, 0.3, 0.055],
+    [0.8, 0.55, 0.07],
+    [0.1, -1.3, 0.065]
+  ];
+  ctx.strokeStyle = '#fff3b0';
+  for (let i = 0; i < spark.length; i++) {
+    const [sxr, syr, sr] = spark[i];
+    const tw = 0.45 + Math.sin(time * 2.4 + i * 1.7) * 0.55;
+    const sx = x + sxr * R;
+    const sy = y + syr * R;
+    const rr = sr * R * (0.7 + tw * 0.5);
+    ctx.globalAlpha = 0.35 + tw * 0.65;
+    ctx.lineWidth = Math.max(1.5, R * 0.028);
     ctx.beginPath();
-    ctx.arc(x - R * 0.76 + i * R * 0.38, y - R * 0.76, R * 0.05, 0, 6.283);
-    ctx.fill();
+    ctx.moveTo(sx - rr, sy);
+    ctx.lineTo(sx + rr, sy);
+    ctx.moveTo(sx, sy - rr);
+    ctx.lineTo(sx, sy + rr);
+    ctx.stroke();
   }
   ctx.globalAlpha = 1;
 }
