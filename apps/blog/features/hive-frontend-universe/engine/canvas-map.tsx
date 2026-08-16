@@ -21,8 +21,11 @@ import { useBoard } from '../hooks/use-board';
 import { useCommunities } from '../hooks/use-communities';
 import { HFU_COPY } from '../lib/strings';
 import { TIERS, type Board } from '../lib/board';
-import { WORLD, LANDMARKS } from '../lib/fixed-world';
+import { WORLD, LANDMARKS, LANDMARK_ACCOUNTS } from '../lib/fixed-world';
+import { buildRoutes } from '../lib/routes';
 import { buildWorld, type GameWorld } from './world';
+import { createCritters, updateCritters, type CritterState } from './critters';
+import { requestAvatar, avatarStats } from './avatars';
 import {
   createPlayer,
   driftUpdate,
@@ -81,12 +84,17 @@ const Stage = ({ board }: { board: Board }) => {
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [atNode, setAtNode] = useState(-1);
+  /** A house opened by clicking/tapping its marker (bigger than the marker). */
+  const [clickedNode, setClickedNode] = useState(-1);
   const [fullMap, setFullMap] = useState(false);
 
   const world: GameWorld = useMemo(
     () => buildWorld(board.windowStart, board.houses.length),
     [board]
   );
+  // The routes seam: named edge-id lists riding ON the mesh, no new geometry.
+  const routes = useMemo(() => buildRoutes(world), [world]);
+  const routeEdgeSet = useMemo(() => new Set(routes.flatMap((r) => r.edgeIds)), [routes]);
 
   const houseVisuals: (HouseVisual | undefined)[] = useMemo(
     () =>
@@ -105,7 +113,8 @@ const Stage = ({ board }: { board: Board }) => {
         label: t(lm.labelKey),
         category: lm.category,
         icon: lm.icon,
-        world: lm.world
+        world: lm.world,
+        handle: LANDMARK_ACCOUNTS[lm.id]
       })),
     [t]
   );
@@ -115,11 +124,15 @@ const Stage = ({ board }: { board: Board }) => {
     const maxSubs = Math.max(1, ...communities.map((c) => c.subscribers));
     communities.forEach((c, i) => {
       if (i < 10) {
-        list[i] = { label: c.title, radius: 170 + Math.sqrt(c.subscribers / maxSubs) * 260 };
+        list[i] = { label: c.title, radius: 170 + Math.sqrt(c.subscribers / maxSubs) * 260, handle: c.name };
       }
     });
     return list;
   }, [communities]);
+  // The frame loop lives in an effect keyed on the world; the communities
+  // query can resolve later, so the loop reads them through a ref.
+  const communityVisualsRef = useRef(communityVisuals);
+  communityVisualsRef.current = communityVisuals;
 
   // Engine state in refs so the loop never re-creates it.
   const playerRef = useRef<PlayerState>(createPlayer());
@@ -132,6 +145,7 @@ const Stage = ({ board }: { board: Board }) => {
   const warpFxRef = useRef(0);
   const trafficRef = useRef<TrafficMarker[]>([]);
   const flowsRef = useRef<FlowState | null>(null);
+  const crittersRef = useRef<CritterState | null>(null);
   const atNodeTick = useRef(-1);
   const mKeyDownAt = useRef(0);
 
@@ -154,6 +168,7 @@ const Stage = ({ board }: { board: Board }) => {
     const p = playerRef.current;
     const { edges, incident, nodes } = world;
     flowsRef.current = createFlows(world);
+    crittersRef.current = createCritters(world, board.windowStart);
 
     // Spawn just inside the mesh beside the Basecamp landmark.
     const basecampIdx = LANDMARKS.findIndex((lm) => lm.id === 'basecamp');
@@ -221,9 +236,40 @@ const Stage = ({ board }: { board: Board }) => {
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('keyup', onKeyUp);
 
-    // Full-map travel: click a fixed landmark to warp the bug there.
+    /** World radius of a house marker's HIT TARGET: at least half again the
+     * visual marker radius, because the visual alone was too hard to hit. */
+    const houseHitRadius = (): number => {
+      const rNode = Math.min(12 / Math.max(camRef.current.z, 0.35), 130);
+      return rNode * 1.18 * 1.6;
+    };
+    const houseAt = (clientX: number, clientY: number): number => {
+      const rect = canvas.getBoundingClientRect();
+      const cam = camRef.current;
+      const wx = (clientX - rect.left - W / 2) / cam.z + cam.x;
+      const wy = (clientY - rect.top - H / 2) / cam.z + cam.y;
+      let best = -1;
+      let bestD = houseHitRadius();
+      for (const n of nodes) {
+        if (n.kind !== 'house' || !houseVisuals[n.ref]) continue;
+        const d = Math.hypot(n.x - wx, n.y - wy);
+        if (d < bestD) {
+          bestD = d;
+          best = n.id;
+        }
+      }
+      return best;
+    };
+
+    // Full-map travel: click a fixed landmark to warp the bug there. Only
+    // rail-reachable places are travel targets; the map never jumps a gap
+    // the bug itself cannot cross.
     const onCanvasClick = (e: MouseEvent) => {
-      if (!fullMapRef.current) return;
+      if (!fullMapRef.current) {
+        // Play zoom: tapping a post marker (generous target) opens its card.
+        const hit = houseAt(e.clientX, e.clientY);
+        setClickedNode(hit);
+        return;
+      }
       const rect = canvas.getBoundingClientRect();
       const cam = camRef.current;
       const wx = (e.clientX - rect.left - W / 2) / cam.z + cam.x;
@@ -233,6 +279,7 @@ const Stage = ({ board }: { board: Board }) => {
       let bestD = threshold;
       for (const n of nodes) {
         if (n.kind !== 'landmark' && n.kind !== 'community') continue;
+        if (!world.reachableFromSpawn[n.id]) continue;
         const d = Math.hypot(n.x - wx, n.y - wy);
         if (d < bestD) {
           bestD = d;
@@ -248,6 +295,14 @@ const Stage = ({ board }: { board: Board }) => {
       }
     };
     canvas.addEventListener('click', onCanvasClick);
+    const onCanvasMove = (e: MouseEvent) => {
+      if (fullMapRef.current) {
+        canvas.style.cursor = 'pointer';
+        return;
+      }
+      canvas.style.cursor = houseAt(e.clientX, e.clientY) >= 0 ? 'pointer' : 'default';
+    };
+    canvas.addEventListener('mousemove', onCanvasMove);
 
     const readInput = () => {
       const keys = keysRef.current;
@@ -304,10 +359,30 @@ const Stage = ({ board }: { board: Board }) => {
     };
 
     const playZ = () => (W >= 900 ? 0.6 : Math.max(0.42, W / 2100));
-    // The fit must include the arm pockets and their structures, not just the
-    // community arc, or the bottom worlds get clipped off the map.
-    const worldExtent = WORLD.meshRadius + WORLD.armReach + 1550;
-    const fitZ = () => Math.min(W, H) / (2 * worldExtent);
+    // The fit must include the farthest breakout clusters (the walled ones),
+    // or the frontier gets clipped off the travel map.
+    const fitZ = () => Math.min(W, H) / (2 * WORLD.fitExtent);
+
+    // Lazy avatar loading: request faces as the player approaches, never all
+    // at once, never blocking anything. Throttled well below frame rate.
+    let avatarTick = 0;
+    const requestNearbyAvatars = (dt: number) => {
+      avatarTick -= dt;
+      if (avatarTick > 0) return;
+      avatarTick = 0.35;
+      for (const n of nodes) {
+        if (n.kind === 'house') {
+          const h = houseVisuals[n.ref];
+          if (h && Math.hypot(n.x - p.x, n.y - p.y) < 2000) requestAvatar(h.handle);
+        } else if (n.kind === 'landmark') {
+          const handle = LANDMARK_ACCOUNTS[LANDMARKS[n.ref]?.id];
+          if (handle && Math.hypot(n.x - p.x, n.y - p.y) < 2400) requestAvatar(handle);
+        } else if (n.kind === 'community') {
+          const c = communityVisualsRef.current[n.ref];
+          if (c && Math.hypot(n.x - p.x, n.y - p.y) < 2800) requestAvatar(c.handle);
+        }
+      }
+    };
 
     const camUpdate = (dt: number) => {
       const cam = camRef.current;
@@ -348,6 +423,8 @@ const Stage = ({ board }: { board: Board }) => {
 
       updateTraffic(dt);
       if (flowsRef.current) updateFlows(flowsRef.current, world, flowCfg, p.x, p.y, dt);
+      if (crittersRef.current) updateCritters(crittersRef.current, world, dt);
+      requestNearbyAvatars(dt);
       camUpdate(dt);
 
       if (p.atNode !== atNodeTick.current) {
@@ -360,6 +437,7 @@ const Stage = ({ board }: { board: Board }) => {
       const mapness = Math.max(0, Math.min(1, (zPlay - camRef.current.z) / Math.max(zPlay - zFit, 0.001)));
 
       const d = new Date(board.windowStart);
+      const drawT0 = performance.now();
       drawScene({
         ctx,
         W,
@@ -371,11 +449,13 @@ const Stage = ({ board }: { board: Board }) => {
         edges,
         houses: houseVisuals,
         landmarks: landmarkVisuals,
-        communities: communityVisuals,
+        communities: communityVisualsRef.current,
         factories,
         cubes,
         flows: flowsRef.current?.particles ?? [],
         traffic: trafficRef.current,
+        routeEdges: routeEdgeSet,
+        critters: crittersRef.current,
         player: p,
         time: ts / 1000,
         tierColors: TIERS.map((tier) => tier.col),
@@ -388,8 +468,23 @@ const Stage = ({ board }: { board: Board }) => {
           windowTime: `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
         }
       });
+      // Rolling frame-time meter, exposed on the debug handle (measured).
+      frameAcc += performance.now() - drawT0;
+      frameN++;
+      if (frameN >= 60) {
+        const dbg = (window as unknown as Record<string, unknown>).__hfuWorldStats as Record<string, unknown>;
+        if (dbg) {
+          dbg.frameAvgMs = Math.round((frameAcc / frameN) * 100) / 100;
+          dbg.mapness = Math.round(mapness * 100) / 100;
+          dbg.avatars = avatarStats();
+        }
+        frameAcc = 0;
+        frameN = 0;
+      }
       raf = requestAnimationFrame(frame);
     };
+    let frameAcc = 0;
+    let frameN = 0;
     raf = requestAnimationFrame(frame);
 
     // Debug/verification handle: real, measured numbers.
@@ -397,7 +492,9 @@ const Stage = ({ board }: { board: Board }) => {
       ...world.stats,
       cubes: cubes.length,
       factories: factories.length,
-      counts: board.counts
+      counts: board.counts,
+      routes: routes.map((r) => ({ id: r.id, ...r.stats })),
+      critters: crittersRef.current?.counts
     };
 
     return () => {
@@ -406,6 +503,7 @@ const Stage = ({ board }: { board: Board }) => {
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
       canvas.removeEventListener('click', onCanvasClick);
+      canvas.removeEventListener('mousemove', onCanvasMove);
     };
     // Visual arrays are read via closure each frame; the world identity is
     // what must rebuild the loop.
@@ -420,13 +518,16 @@ const Stage = ({ board }: { board: Board }) => {
       p.still = 0;
     }
     setAtNode(-1);
+    setClickedNode(-1);
   };
 
-  const node = atNode >= 0 ? world.nodes[atNode] : undefined;
+  // A clicked post marker wins over the parked-at node for the card.
+  const shownNode = clickedNode >= 0 ? clickedNode : atNode;
+  const node = shownNode >= 0 ? world.nodes[shownNode] : undefined;
   const atHouse = node?.kind === 'house' && board.houses[node.ref] ? board.houses[node.ref] : null;
-  const atLandmark = node?.kind === 'landmark' ? LANDMARKS[node.ref] : null;
+  const atLandmark = node?.kind === 'landmark' && clickedNode < 0 ? LANDMARKS[node.ref] : null;
   const atCommunity: TopCommunity | null =
-    node?.kind === 'community' && communities ? communities[node.ref] ?? null : null;
+    node?.kind === 'community' && clickedNode < 0 && communities ? communities[node.ref] ?? null : null;
 
   return (
     <div

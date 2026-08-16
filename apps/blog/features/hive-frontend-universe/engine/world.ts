@@ -1,17 +1,20 @@
 /**
- * Hive Frontend Universe — world assembly.
+ * Hive Frontend Universe - world assembly.
  *
- * Welds the layers into one travelable graph shaped like a body with limbs:
- *   - the window's woven mesh (deterministic per window) — the main body,
- *     holding the posts;
- *   - eight permanent ARMS growing off the body, each a trunk (entry → elbow
- *     → pocket hub) ending in a pocket of landmarks (lib/fixed-world.ts);
- *   - the community bubble arc on the outer edge.
+ * Welds the layers into one travelable graph shaped like a ragged globular
+ * BODY with BREAKOUT CLUSTERS:
+ *   - the window's woven mesh fills the body mask (lib/fixed-world.ts cells),
+ *     holding the posts and the in-body landmarks (as mesh anchors);
+ *   - six permanent star clusters hang off the body: two tied on by a single
+ *     thin rail trail, two reachable only by hopping their gap, two walled
+ *     behind gaps 1.5-3x the maximum hop distance;
+ *   - the community bubbles float just off the south-west coastline.
  *
- * Every added line is crossing-checked against everything already placed;
- * an edge that crosses is straightened, and if it still crosses its target
- * is swapped, so planarity survives by verification rather than hope. The
- * combined graph's numbers (crossings, reachability) are measured and kept.
+ * Every added line is verified against the pass-two mesh rules: planarity
+ * (numeric crossing check), max degree 4, and 35 degrees between lines
+ * leaving a junction. Gap widths, reachability and the max hop distance are
+ * MEASURED (the hop from the real movement constants, which this file never
+ * changes) and reported in stats.
  */
 
 import {
@@ -20,16 +23,25 @@ import {
   makeWobble,
   countCrossings,
   mulberry32,
+  leaveAngle,
+  MESH_MAX_DEGREE,
+  MESH_MIN_ANGLE_DEG,
   type MeshEdge
 } from '../lib/mesh';
 import {
   WORLD,
   LANDMARKS,
-  ARMS,
-  armLandmarks,
+  CLUSTERS,
+  insideBody,
+  sampleBodyPoint,
+  coastDistanceAt,
   communitySlots,
-  rimPosition
+  rimPosition,
+  landmarkPosition,
+  bodyLandmarkIndexes,
+  clusterLandmarkIndexes
 } from '../lib/fixed-world';
+import { MOVE } from './movement';
 
 export type NodeKind = 'junction' | 'house' | 'landmark' | 'community';
 
@@ -45,16 +57,31 @@ export interface WorldEdge extends MeshEdge {
   kind: 'mesh' | 'spoke';
 }
 
+export interface GapReport {
+  cluster: string;
+  link: 'hop' | 'wall';
+  /** Measured narrowest gap between this cluster's lines and any other line. */
+  gapPx: number;
+  /** gapPx / maxHopPx. */
+  ratio: number;
+}
+
 export interface WorldStats {
   junctions: number;
   edges: number;
   crossings: number;
+  /** Narrowest angle between two lines leaving any junction, whole graph. */
   minAngleDeg: number;
   houses: number;
   reachableHouses: number;
-  reachableLandmarks: number;
   landmarks: number;
-  arms: number;
+  clusters: number;
+  trailClusters: string[];
+  hopOnlyClusters: string[];
+  wallClusters: string[];
+  gaps: GapReport[];
+  /** Longest gap the bug can cross with a full drift ring, simulated. */
+  maxHopPx: number;
   droppedSpokes: number;
   genMs: number;
 }
@@ -66,6 +93,26 @@ export interface GameWorld {
   stats: WorldStats;
   landmarkNodeByIndex: number[];
   communityNodeBySlot: number[];
+  /** Rail-reachable from the spawn (body + trail clusters + communities). */
+  reachableFromSpawn: boolean[];
+}
+
+/**
+ * Maximum drift distance, simulated step-by-step from the movement constants
+ * (never edited here): jump speed, drift acceleration and cap, drag, fuel,
+ * plus the snap radius at the far end.
+ */
+export function simulateMaxHop(): number {
+  const dt = 1 / 120;
+  let v: number = MOVE.JUMPV;
+  let d = 0;
+  for (let t = 0; t < MOVE.DRIFT_TIME; t += dt) {
+    v += MOVE.DRIFT_ACC * dt;
+    if (v > MOVE.DRIFT_MAX) v = MOVE.DRIFT_MAX;
+    v -= v * MOVE.DRAG * dt;
+    d += v * dt;
+  }
+  return d + MOVE.SNAP;
 }
 
 /** One-vs-all curve crossing test (bbox precheck, then segment pairs). */
@@ -110,53 +157,86 @@ function crossesAny(spoke: MeshEdge, edges: readonly MeshEdge[]): boolean {
   return false;
 }
 
+const TAU = Math.PI * 2;
+
+function angDiff(a: number, b: number): number {
+  let d = Math.abs(a - b) % TAU;
+  if (d > Math.PI) d = TAU - d;
+  return d;
+}
+
 /**
  * Builds the whole travelable world for a window. Deterministic given
- * `windowStart` alone; the arms and pockets are constants, so only the body
- * is rewoven. `houseCount` only says how many house slots are occupied.
+ * `windowStart` alone; the body cells, clusters and landmark positions are
+ * constants, so only the body's weave is rewoven.
  */
 export function buildWorld(windowStart: number, houseCount: number): GameWorld {
   const t0 = Date.now();
+
+  // Body landmarks are anchors: seeded into the point set first, so the
+  // Gabriel weave wires them into the body organically.
+  const bodyLmIdx = bodyLandmarkIndexes();
+  const anchors = bodyLmIdx.map((i) => landmarkPosition(LANDMARKS[i]));
+
   const mesh = generateMesh({
     seed: windowStart,
-    worldRadius: WORLD.meshRadius,
-    houseRadius: WORLD.houseRadius,
+    worldRadius: WORLD.bboxRadius,
+    houseRadius: WORLD.bboxRadius,
     spacing: WORLD.spacing,
-    houseCount: WORLD.houseSlots
+    houseCount: WORLD.houseSlots,
+    anchors,
+    inside: insideBody,
+    samplePoint: sampleBodyPoint
   });
   const rng = mulberry32((windowStart ^ 0xa5a5) | 0);
 
   const occupied = Math.min(houseCount, WORLD.houseSlots);
-  const nodes: WorldNode[] = mesh.junctions.map((j) => ({
-    id: j.id,
-    x: j.x,
-    y: j.y,
-    kind: j.house >= 0 && j.house < occupied ? 'house' : 'junction',
-    ref: j.house >= 0 && j.house < occupied ? j.house : -1
-  }));
+  const nodes: WorldNode[] = mesh.junctions.map((j) => {
+    if (j.anchor >= 0) return { id: j.id, x: j.x, y: j.y, kind: 'landmark' as const, ref: bodyLmIdx[j.anchor] };
+    if (j.house >= 0 && j.house < occupied) return { id: j.id, x: j.x, y: j.y, kind: 'house' as const, ref: j.house };
+    return { id: j.id, x: j.x, y: j.y, kind: 'junction' as const, ref: -1 };
+  });
   const edges: WorldEdge[] = mesh.edges.map((e) => ({ ...e, kind: 'mesh' }));
 
   const px = nodes.map((n) => n.x);
   const py = nodes.map((n) => n.y);
-  const meshDegree = new Array(nodes.length).fill(0);
+  const degree = new Array(nodes.length).fill(0);
+  const incidentIds: number[][] = nodes.map(() => []);
   for (const e of mesh.edges) {
-    meshDegree[e.a]++;
-    meshDegree[e.b]++;
+    degree[e.a]++;
+    degree[e.b]++;
+    incidentIds[e.a].push(e.id);
+    incidentIds[e.b].push(e.id);
   }
 
   let droppedSpokes = 0;
+  const minAngleRad = (MESH_MIN_ANGLE_DEG * Math.PI) / 180;
 
   const addNode = (x: number, y: number, kind: NodeKind, ref: number): number => {
     const id = nodes.length;
     nodes.push({ id, x, y, kind, ref });
     px.push(x);
     py.push(y);
-    meshDegree.push(0);
+    degree.push(0);
+    incidentIds.push([]);
     return id;
   };
 
-  /** Adds a curved edge a→b if it crosses nothing; falls back to straight. */
+  /** True if `cand` leaves `v` at least 35 degrees from every existing line. */
+  const angleOk = (cand: MeshEdge, v: number): boolean => {
+    const na = leaveAngle(cand, v);
+    for (const ei of incidentIds[v]) {
+      if (angDiff(na, leaveAngle(edges[ei], v)) < minAngleRad) return false;
+    }
+    return true;
+  };
+
+  /**
+   * Adds a curved edge a-b only if it crosses nothing, keeps both endpoint
+   * degrees at 4 or less, and respects the 35-degree rule at both ends.
+   */
   const addEdge = (a: number, b: number, wobbly: boolean): boolean => {
+    if (degree[a] >= MESH_MAX_DEGREE || degree[b] >= MESH_MAX_DEGREE) return false;
     const len = Math.hypot(px[a] - px[b], py[a] - py[b]);
     const candidates = wobbly
       ? [
@@ -167,82 +247,210 @@ export function buildWorld(windowStart: number, houseCount: number): GameWorld {
       : [sampleEdge(edges.length, a, b, px, py, len * 0.04), sampleEdge(edges.length, a, b, px, py, 0)];
     for (const cand of candidates) {
       const edge: WorldEdge = { ...cand, kind: 'spoke' };
-      if (!crossesAny(edge, edges)) {
-        edges.push(edge);
-        meshDegree[a]++;
-        meshDegree[b]++;
-        return true;
-      }
+      if (!angleOk(edge, a) || !angleOk(edge, b)) continue;
+      if (crossesAny(edge, edges)) continue;
+      edges.push(edge);
+      degree[a]++;
+      degree[b]++;
+      incidentIds[a].push(edge.id);
+      incidentIds[b].push(edge.id);
+      return true;
     }
     return false;
   };
 
-  /** Nearest mesh junction to a rim point, preferring uncrowded ones. */
-  const entryJunction = (x: number, y: number): number => {
-    const order = mesh.junctions
+  /** Mesh junctions nearest a point (closest first, full junctions skipped). */
+  const nearJunctions = (x: number, y: number, count: number): number[] => {
+    return mesh.junctions
       .map((j) => ({ id: j.id, d: Math.hypot(x - j.x, y - j.y) }))
+      .filter((c) => degree[c.id] < MESH_MAX_DEGREE)
       .sort((a, b) => a.d - b.d)
-      .slice(0, 16);
-    for (const cand of order) if (meshDegree[cand.id] <= 3) return cand.id;
-    return order[0].id;
+      .slice(0, count)
+      .map((c) => c.id);
   };
 
-  // ---- Grow the arms: entry → elbow → pocket hub → landmark nodes. ----
+  // ---- Grow the breakout clusters: star hubs with landmark spokes. ----
   const landmarkNodeByIndex: number[] = new Array(LANDMARKS.length).fill(-1);
-  for (const arm of ARMS) {
-    const pocket = armLandmarks(arm.id);
-    if (!pocket.length) continue;
-    const entryPt = rimPosition(arm.angleDeg, WORLD.meshRadius * 0.97);
-    const entry = entryJunction(entryPt.x, entryPt.y);
-
-    const elbowJitter = (rng() - 0.5) * 9;
-    const elbowPt = rimPosition(arm.angleDeg + elbowJitter, WORLD.meshRadius + WORLD.armReach * 0.45);
-    const hubPt = rimPosition(arm.angleDeg, WORLD.meshRadius + WORLD.armReach);
-    const elbow = addNode(elbowPt.x, elbowPt.y, 'junction', -1);
-    const hub = addNode(hubPt.x, hubPt.y, 'junction', -1);
-
-    let trunkOk = addEdge(entry, elbow, true);
-    if (!trunkOk) {
-      // Try a different entry before giving up; never strand an arm silently.
-      const alt = entryJunction(elbowPt.x, elbowPt.y);
-      trunkOk = alt !== entry && addEdge(alt, elbow, true);
-    }
-    if (!trunkOk) droppedSpokes++;
-    if (!addEdge(elbow, hub, true)) droppedSpokes++;
-
-    // Pocket: fan the landmarks out LOCALLY around the hub (offsets are
-    // relative to the hub, not polar rotations of the whole world), worlds
-    // get more room so their structures read as places.
-    const n = pocket.length;
-    pocket.forEach((lm, k) => {
-      const spreadDeg = n === 1 ? 0 : (k - (n - 1) / 2) * 46;
-      const outDir = ((arm.angleDeg + spreadDeg) * Math.PI) / 180;
-      const dist = lm.world ? 820 : 560 + (k % 2) * 150;
-      const x = hubPt.x + Math.cos(outDir) * dist;
-      const y = hubPt.y - Math.sin(outDir) * dist;
-      const nodeId = addNode(x, y, 'landmark', LANDMARKS.indexOf(lm));
-      landmarkNodeByIndex[LANDMARKS.indexOf(lm)] = nodeId;
-      if (!addEdge(hub, nodeId, false)) droppedSpokes++;
-    });
+  for (const i of bodyLmIdx) {
+    // Body landmarks already sit in the mesh as anchors (junction id equals
+    // anchor order because anchors are the first seeded points).
+    landmarkNodeByIndex[i] = bodyLmIdx.indexOf(i);
   }
 
-  // ---- Communities: bubbles on their arc, two spokes each into the mesh. ----
-  const communityNodeBySlot: number[] = communitySlots().map((slot) => {
-    const p = rimPosition(slot.angleDeg, WORLD.communityRadius);
-    const id = addNode(p.x, p.y, 'community', slot.slot);
-    let connected = 0;
-    const order = mesh.junctions
-      .map((j) => ({ id: j.id, d: Math.hypot(p.x - j.x, p.y - j.y) }))
-      .sort((a, b) => a.d - b.d)
-      .slice(0, 16);
-    for (const cand of order) {
-      if (connected >= 2) break;
-      if (connected === 0 || meshDegree[cand.id] <= 3) {
-        if (addEdge(id, cand.id, false)) connected++;
+  const edgesByCluster = new Map<string, number[]>();
+  const hubByCluster = new Map<string, number>();
+
+  for (const cluster of CLUSTERS) {
+    const before = edges.length;
+    const hub = addNode(cluster.x, cluster.y, 'junction', -1);
+    hubByCluster.set(cluster.id, hub);
+
+    for (const li of clusterLandmarkIndexes(cluster.id)) {
+      const p = landmarkPosition(LANDMARKS[li]);
+      const nodeId = addNode(p.x, p.y, 'landmark', li);
+      landmarkNodeByIndex[li] = nodeId;
+      if (!addEdge(hub, nodeId, false)) droppedSpokes++;
+    }
+    for (const [angleDeg, dist] of cluster.satellites) {
+      const rad = (angleDeg * Math.PI) / 180;
+      const nodeId = addNode(cluster.x + Math.cos(rad) * dist, cluster.y - Math.sin(rad) * dist, 'junction', -1);
+      if (!addEdge(hub, nodeId, false)) droppedSpokes++;
+    }
+
+    // The thin trail: a chain of junctions from the nearest coast junction
+    // to the hub, segment length near the body's junction spacing. A failed
+    // attempt is rolled back completely so no orphan nodes float in the void.
+    if (cluster.link === 'trail') {
+      let trailOk = false;
+      for (const entry of nearJunctions(cluster.x, cluster.y, 14)) {
+        const nodeMark = nodes.length;
+        const edgeMark = edges.length;
+        const ex = px[entry];
+        const ey = py[entry];
+        const dist = Math.hypot(cluster.x - ex, cluster.y - ey);
+        const segments = Math.max(2, Math.round(dist / (WORLD.spacing * 1.05)));
+        let prev = entry;
+        let ok = true;
+        for (let s = 1; s < segments; s++) {
+          const t = s / segments;
+          // Small perpendicular sway so the trail reads hand-laid, not ruled.
+          const sway = Math.sin(t * Math.PI) * dist * 0.07 * (rng() < 0.5 ? -1 : 1);
+          const nx = -(cluster.y - ey) / dist;
+          const ny = (cluster.x - ex) / dist;
+          const jx = ex + (cluster.x - ex) * t + nx * sway;
+          const jy = ey + (cluster.y - ey) * t + ny * sway;
+          const mid = addNode(jx, jy, 'junction', -1);
+          if (!addEdge(prev, mid, true)) {
+            ok = false;
+            break;
+          }
+          prev = mid;
+        }
+        if (ok && addEdge(prev, hub, true)) {
+          trailOk = true;
+          break;
+        }
+        // Roll the failed attempt back: drop its edges (fix degrees and
+        // incidence), then its nodes. Both were appended, so popping works.
+        while (edges.length > edgeMark) {
+          const e = edges.pop() as WorldEdge;
+          degree[e.a]--;
+          degree[e.b]--;
+          incidentIds[e.a].pop();
+          incidentIds[e.b].pop();
+        }
+        while (nodes.length > nodeMark) {
+          nodes.pop();
+          px.pop();
+          py.pop();
+          degree.pop();
+          incidentIds.pop();
+        }
+      }
+      if (!trailOk) droppedSpokes++;
+    }
+
+    edgesByCluster.set(
+      cluster.id,
+      edges.slice(before).map((e) => e.id)
+    );
+  }
+
+  // ---- Communities: bubbles floating just off the coastline, one spoke
+  // each (the coast has fewer junctions than bubbles; a single spoke keeps
+  // every bubble attached without exhausting a junction's degree budget).
+  // Bubbles may attach to any RAIL-CONNECTED node: body mesh junctions or
+  // the plain junctions of trail clusters (a village on the road), never to
+  // hop or wall clusters, which would secretly bridge their gap. Spokes are
+  // length-capped; a longer reach gets a mid junction so no single line
+  // breaks the junction-spacing rule. Failures retry nearer, farther and
+  // slightly swung; every failed attempt rolls back completely.
+  const railCandidateIds: number[] = [];
+  for (let i = 0; i < mesh.junctions.length; i++) railCandidateIds.push(i);
+  for (const cluster of CLUSTERS) {
+    if (cluster.link !== 'trail') continue;
+    for (const ei of edgesByCluster.get(cluster.id) ?? []) {
+      for (const v of [edges[ei].a, edges[ei].b]) {
+        if (nodes[v].kind === 'junction' && !railCandidateIds.includes(v)) railCandidateIds.push(v);
       }
     }
-    if (connected === 0) droppedSpokes++;
-    return id;
+  }
+  const rollbackTo = (nodeMark: number, edgeMark: number): void => {
+    while (edges.length > edgeMark) {
+      const e = edges.pop() as WorldEdge;
+      degree[e.a]--;
+      degree[e.b]--;
+      incidentIds[e.a].pop();
+      incidentIds[e.b].pop();
+    }
+    while (nodes.length > nodeMark) {
+      nodes.pop();
+      px.pop();
+      py.pop();
+      degree.pop();
+      incidentIds.pop();
+    }
+  };
+  const placedBubbles: number[] = [];
+  const communityNodeBySlot: number[] = communitySlots().map((slot) => {
+    const attempts: [number, number][] = [];
+    for (const nudge of [0, 3, -3]) {
+      for (const m of [1, 0.62, 1.5]) attempts.push([slot.angleDeg + nudge, m]);
+    }
+    for (const [ang, m] of attempts) {
+      const coast = coastDistanceAt(ang);
+      const p = rimPosition(ang, coast + WORLD.communityCoastOffset * m);
+      const cands = railCandidateIds
+        .map((id) => ({ id, d: Math.hypot(p.x - px[id], p.y - py[id]) }))
+        .filter((c) => degree[c.id] < MESH_MAX_DEGREE && c.d < 1250)
+        .sort((a, b) => a.d - b.d)
+        .slice(0, 16);
+      for (const cand of cands) {
+        const nodeMark = nodes.length;
+        const edgeMark = edges.length;
+        const id = addNode(p.x, p.y, 'community', slot.slot);
+        if (cand.d <= 750) {
+          if (addEdge(id, cand.id, false)) {
+            placedBubbles.push(id);
+            return id;
+          }
+        } else {
+          // Two segments through a mid junction, gently swayed.
+          const mx = (p.x + px[cand.id]) / 2 + (rng() - 0.5) * 90;
+          const my = (p.y + py[cand.id]) / 2 + (rng() - 0.5) * 90;
+          const mid = addNode(mx, my, 'junction', -1);
+          if (addEdge(id, mid, false) && addEdge(mid, cand.id, false)) {
+            placedBubbles.push(id);
+            return id;
+          }
+        }
+        rollbackTo(nodeMark, edgeMark);
+      }
+    }
+    // Fallback: chain onto an already-attached neighbour bubble instead (a
+    // strand of bubbles along the arc still reaches the body by rail).
+    {
+      const coast = coastDistanceAt(slot.angleDeg);
+      const p = rimPosition(slot.angleDeg, coast + WORLD.communityCoastOffset);
+      const neighbours = placedBubbles
+        .map((id) => ({ id, d: Math.hypot(p.x - px[id], p.y - py[id]) }))
+        .filter((c) => degree[c.id] < MESH_MAX_DEGREE && c.d < 1250)
+        .sort((a, b) => a.d - b.d);
+      for (const cand of neighbours) {
+        const nodeMark = nodes.length;
+        const edgeMark = edges.length;
+        const id = addNode(p.x, p.y, 'community', slot.slot);
+        if (addEdge(id, cand.id, false)) {
+          placedBubbles.push(id);
+          return id;
+        }
+        rollbackTo(nodeMark, edgeMark);
+      }
+      // Truly stuck: keep the bubble at its nominal spot even unattached, so
+      // the slot still exists; counted honestly as a dropped spoke.
+      droppedSpokes++;
+      return addNode(p.x, p.y, 'community', slot.slot);
+    }
   });
 
   const incident: number[][] = nodes.map(() => []);
@@ -251,27 +459,80 @@ export function buildWorld(windowStart: number, houseCount: number): GameWorld {
     incident[e.b].push(e.id);
   }
 
-  // Final combined verification, measured not assumed.
+  // ---- Final verification: measured, never assumed. ----
   const finalCross = countCrossings(edges, WORLD.spacing);
-  const seen = new Set<number>([0]);
-  const queue = [0];
+
+  let minAngleDeg = 180;
+  for (let v = 0; v < nodes.length; v++) {
+    const list = incident[v];
+    for (let i = 0; i < list.length; i++) {
+      for (let j = i + 1; j < list.length; j++) {
+        const d = angDiff(leaveAngle(edges[list[i]], v), leaveAngle(edges[list[j]], v));
+        minAngleDeg = Math.min(minAngleDeg, (d * 180) / Math.PI);
+      }
+    }
+  }
+
+  // Reachability from the spawn (the Basecamp tent inside the body).
+  const basecampIdx = LANDMARKS.findIndex((lm) => lm.id === 'basecamp');
+  const spawn = landmarkNodeByIndex[basecampIdx] >= 0 ? landmarkNodeByIndex[basecampIdx] : 0;
+  const reachableFromSpawn: boolean[] = new Array(nodes.length).fill(false);
+  reachableFromSpawn[spawn] = true;
+  const queue = [spawn];
   while (queue.length) {
     const v = queue.pop() as number;
     for (const ei of incident[v]) {
       const e = edges[ei];
       const o = e.a === v ? e.b : e.a;
-      if (!seen.has(o)) {
-        seen.add(o);
+      if (!reachableFromSpawn[o]) {
+        reachableFromSpawn[o] = true;
         queue.push(o);
       }
     }
   }
   let reachableHouses = 0;
-  let reachableLandmarks = 0;
   for (const n of nodes) {
-    if (n.kind === 'house' && seen.has(n.id)) reachableHouses++;
-    if ((n.kind === 'landmark' || n.kind === 'community') && seen.has(n.id)) reachableLandmarks++;
+    if (n.kind === 'house' && reachableFromSpawn[n.id]) reachableHouses++;
   }
+
+  // Gap widths: for hop and wall clusters, the narrowest distance between
+  // any of the cluster's line points and any line outside the cluster.
+  const maxHopPx = simulateMaxHop();
+  const gaps: GapReport[] = [];
+  for (const cluster of CLUSTERS) {
+    if (cluster.link === 'trail') continue;
+    const own = new Set(edgesByCluster.get(cluster.id) ?? []);
+    let best = Infinity;
+    for (const ce of edges) {
+      if (!own.has(ce.id)) continue;
+      for (const oe of edges) {
+        if (own.has(oe.id)) continue;
+        // Cheap prefilter: midpoints further apart than the current best plus
+        // both half-lengths cannot contain a closer point pair.
+        const cm = Math.floor(ce.pts.length / 4) * 2;
+        const om = Math.floor(oe.pts.length / 4) * 2;
+        const midDist = Math.hypot(ce.pts[cm] - oe.pts[om], ce.pts[cm + 1] - oe.pts[om + 1]);
+        if (midDist - ce.len / 2 - oe.len / 2 > best) continue;
+        for (let s = 0; s < ce.pts.length; s += 2) {
+          for (let r = 0; r < oe.pts.length; r += 2) {
+            const d = Math.hypot(ce.pts[s] - oe.pts[r], ce.pts[s + 1] - oe.pts[r + 1]);
+            if (d < best) best = d;
+          }
+        }
+      }
+    }
+    gaps.push({
+      cluster: cluster.id,
+      link: cluster.link,
+      gapPx: Math.round(best),
+      ratio: Math.round((best / maxHopPx) * 100) / 100
+    });
+  }
+
+  const railClusters = CLUSTERS.filter((c) => {
+    const hub = hubByCluster.get(c.id);
+    return hub !== undefined && reachableFromSpawn[hub];
+  }).map((c) => c.id);
 
   return {
     nodes,
@@ -279,16 +540,21 @@ export function buildWorld(windowStart: number, houseCount: number): GameWorld {
     incident,
     landmarkNodeByIndex,
     communityNodeBySlot,
+    reachableFromSpawn,
     stats: {
       junctions: nodes.length,
       edges: edges.length,
       crossings: finalCross.count,
-      minAngleDeg: mesh.stats.minAngleDeg,
+      minAngleDeg: Math.round(minAngleDeg * 10) / 10,
       houses: occupied,
       reachableHouses,
-      reachableLandmarks,
       landmarks: LANDMARKS.length + communitySlots().length,
-      arms: ARMS.length,
+      clusters: CLUSTERS.length,
+      trailClusters: railClusters,
+      hopOnlyClusters: CLUSTERS.filter((c) => c.link === 'hop').map((c) => c.id),
+      wallClusters: CLUSTERS.filter((c) => c.link === 'wall').map((c) => c.id),
+      gaps,
+      maxHopPx: Math.round(maxHopPx),
       droppedSpokes,
       genMs: Date.now() - t0
     }

@@ -59,6 +59,93 @@ export function drawHiveMark(
 /* ------------------------------------------------------------------ */
 
 /**
+ * The bug's mark, GLASSY: the same three-chevron Hive shape, but molten red
+ * glass with soft gradients and an inner glow, plus a thick dark outline so
+ * it reads on the red body at play zoom (the old flat white fill rendered,
+ * but at ~9 screen px its chevron gaps dissolved to an illegible smudge).
+ *
+ * Pre-rendered ONCE to an offscreen canvas at high resolution and drawn with
+ * drawImage: crisp when scaled down, and near-free per frame.
+ *
+ * NEVER mirror this: callers must not draw it under a flipped transform. The
+ * bug itself faces left/right by coordinate offsets only, so the mark can
+ * never appear backwards.
+ */
+const GLASS_PAD = 36;
+let glassyCache: HTMLCanvasElement | null = null;
+
+function glassyMark(): HTMLCanvasElement | null {
+  if (glassyCache) return glassyCache;
+  if (typeof document === 'undefined') return null;
+  const paths = hiveMarkPaths();
+  if (!paths.length) return null;
+  const canvas = document.createElement('canvas');
+  canvas.width = HIVE_VIEW.w + GLASS_PAD * 2;
+  canvas.height = HIVE_VIEW.h + GLASS_PAD * 2;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return null;
+  ctx.translate(GLASS_PAD, GLASS_PAD);
+
+  // Soft outer glow behind everything.
+  ctx.save();
+  ctx.shadowColor = 'rgba(255, 64, 96, 0.9)';
+  ctx.shadowBlur = 26;
+  ctx.fillStyle = '#e31337';
+  for (const p of paths) ctx.fill(p);
+  ctx.restore();
+
+  // Thick dark outline separating the glass from the red body.
+  ctx.strokeStyle = '#2b030a';
+  ctx.lineWidth = 22;
+  ctx.lineJoin = 'round';
+  for (const p of paths) ctx.stroke(p);
+
+  // The molten glass: deep-to-bright vertical gradient.
+  const glass = ctx.createLinearGradient(0, 0, 0, HIVE_VIEW.h);
+  glass.addColorStop(0, '#ff98ab');
+  glass.addColorStop(0.38, '#ff2c4e');
+  glass.addColorStop(0.75, '#c50d2b');
+  glass.addColorStop(1, '#7c0619');
+  ctx.fillStyle = glass;
+  for (const p of paths) ctx.fill(p);
+
+  // Inner glow: painted only where glass already exists (source-atop).
+  ctx.save();
+  ctx.globalCompositeOperation = 'source-atop';
+  const glow = ctx.createRadialGradient(HIVE_VIEW.w / 2, HIVE_VIEW.h * 0.34, 8, HIVE_VIEW.w / 2, HIVE_VIEW.h * 0.34, HIVE_VIEW.w * 0.75);
+  glow.addColorStop(0, 'rgba(255, 190, 205, 0.85)');
+  glow.addColorStop(0.4, 'rgba(255, 90, 120, 0.28)');
+  glow.addColorStop(1, 'rgba(255, 90, 120, 0)');
+  ctx.fillStyle = glow;
+  ctx.fillRect(-GLASS_PAD, -GLASS_PAD, canvas.width, canvas.height);
+  // A specular streak across the upper third, like curved glass.
+  ctx.globalAlpha = 0.35;
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath();
+  ctx.ellipse(HIVE_VIEW.w * 0.46, HIVE_VIEW.h * 0.2, HIVE_VIEW.w * 0.5, HIVE_VIEW.h * 0.13, -0.12, 0, 6.283);
+  ctx.fill();
+  ctx.restore();
+
+  glassyCache = canvas;
+  return canvas;
+}
+
+/** The glassy mark, centred at (x, y), `size` px tall. Never under a flip. */
+export function drawBugMark(ctx: CanvasRenderingContext2D, x: number, y: number, size: number): void {
+  const cache = glassyMark();
+  if (!cache) return;
+  const k = size / HIVE_VIEW.h;
+  const w = cache.width * k;
+  const h = cache.height * k;
+  ctx.drawImage(cache, x - w / 2, y - h / 2, w, h);
+}
+
+/* ------------------------------------------------------------------ */
+
+/** The sticker outline colour shared by the chunky code-drawn places. */
+const STICKER_OUTLINE = '#160f1d';
+
+/**
  * Landmark icons. `s` is the icon's rough half-size in world px; `col` is the
  * category colour; `time` drives small idle animations (pulses, blinks).
  */
@@ -238,28 +325,46 @@ export function drawIcon(
       ctx.stroke();
       break;
     }
-    case 'tent':
-      // Basecamp: a tent with a door slit and a little pennant.
+    case 'tent': {
+      // Basecamp: chunky sticker tent. Thick dark outline, flat bright fill,
+      // dark door slit, red pennant.
+      ctx.strokeStyle = STICKER_OUTLINE;
+      ctx.lineWidth = Math.max(3, s * 0.16);
       ctx.beginPath();
-      ctx.moveTo(x - s * 0.9, y + s * 0.6);
-      ctx.lineTo(x, y - s * 0.7);
-      ctx.lineTo(x + s * 0.9, y + s * 0.6);
+      ctx.moveTo(x - s * 0.95, y + s * 0.62);
+      ctx.lineTo(x, y - s * 0.72);
+      ctx.lineTo(x + s * 0.95, y + s * 0.62);
       ctx.closePath();
+      ctx.fillStyle = '#FFC24D';
+      ctx.fill();
+      ctx.stroke();
+      // Canvas seam and the dark door slit.
+      ctx.beginPath();
+      ctx.moveTo(x, y - s * 0.72);
+      ctx.lineTo(x, y + s * 0.62);
       ctx.stroke();
       ctx.beginPath();
-      ctx.moveTo(x, y - s * 0.7);
-      ctx.lineTo(x, y + s * 0.6);
-      ctx.moveTo(x, y + s * 0.6);
-      ctx.lineTo(x - s * 0.25, y + s * 0.6);
-      ctx.lineTo(x, y - s * 0.05);
+      ctx.moveTo(x - s * 0.28, y + s * 0.62);
+      ctx.lineTo(x, y - s * 0.08);
+      ctx.lineTo(x + s * 0.28, y + s * 0.62);
+      ctx.closePath();
+      ctx.fillStyle = '#3b2a14';
+      ctx.fill();
+      // Pennant, fluttering.
+      ctx.beginPath();
+      ctx.moveTo(x, y - s * 0.72);
+      ctx.lineTo(x, y - s * 1.12);
       ctx.stroke();
       ctx.beginPath();
-      ctx.moveTo(x, y - s * 0.7);
-      ctx.lineTo(x, y - s * 1.05);
-      ctx.lineTo(x + s * 0.35, y - s * 0.92);
-      ctx.lineTo(x, y - s * 0.8);
+      ctx.moveTo(x, y - s * 1.12);
+      ctx.lineTo(x + s * (0.42 + 0.05 * Math.sin(time * 3)), y - s * 0.99);
+      ctx.lineTo(x, y - s * 0.86);
+      ctx.closePath();
+      ctx.fillStyle = '#E31337';
+      ctx.fill();
       ctx.stroke();
       break;
+    }
     case 'flag':
       ctx.beginPath();
       ctx.moveTo(x - s * 0.4, y + s * 0.9);
@@ -335,30 +440,61 @@ function drawFerris(
   col: string,
   time: number
 ): void {
+  // Chunky sticker ferris wheel: fat dark outlines, flat bright fills.
+  const lw = Math.max(4, R * 0.09);
+  ctx.strokeStyle = STICKER_OUTLINE;
+  ctx.lineWidth = lw;
+  // Legs: a filled A-frame.
   ctx.beginPath();
-  ctx.moveTo(x - R * 0.7, y + R * 1.15);
-  ctx.lineTo(x, y);
-  ctx.lineTo(x + R * 0.7, y + R * 1.15);
+  ctx.moveTo(x - R * 0.72, y + R * 1.18);
+  ctx.lineTo(x, y + R * 0.05);
+  ctx.lineTo(x + R * 0.72, y + R * 1.18);
+  ctx.lineTo(x + R * 0.45, y + R * 1.18);
+  ctx.lineTo(x, y + R * 0.36);
+  ctx.lineTo(x - R * 0.45, y + R * 1.18);
+  ctx.closePath();
+  ctx.fillStyle = '#8f76d6';
+  ctx.fill();
   ctx.stroke();
-  ctx.globalAlpha = 0.9;
+  // Rim: dark fat ring, then a flat violet band inside it.
   ctx.beginPath();
   ctx.arc(x, y, R, 0, 6.283);
+  ctx.lineWidth = lw * 1.7;
   ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(x, y, R, 0, 6.283);
+  ctx.strokeStyle = col;
+  ctx.lineWidth = lw * 0.9;
+  ctx.stroke();
+  // Spokes and cars.
   const rot = time * 0.22;
   for (let i = 0; i < 8; i++) {
     const a = rot + (i * 6.283) / 8;
     const cx = x + Math.cos(a) * R;
     const cy = y + Math.sin(a) * R;
+    ctx.strokeStyle = col;
+    ctx.lineWidth = lw * 0.65;
     ctx.beginPath();
     ctx.moveTo(x, y);
     ctx.lineTo(cx, cy);
     ctx.stroke();
-    ctx.fillStyle = '#FFC24D';
+    // Cars: flat amber pods with the dark outline, hanging below the rim.
     ctx.beginPath();
-    ctx.arc(cx, cy + R * 0.08, R * 0.09, 0, 6.283);
+    ctx.arc(cx, cy + R * 0.11, R * 0.13, 0, 6.283);
+    ctx.fillStyle = '#FFC24D';
     ctx.fill();
+    ctx.strokeStyle = STICKER_OUTLINE;
+    ctx.lineWidth = lw * 0.7;
+    ctx.stroke();
   }
-  ctx.globalAlpha = 1;
+  // Hub.
+  ctx.beginPath();
+  ctx.arc(x, y, R * 0.16, 0, 6.283);
+  ctx.fillStyle = '#ffffff';
+  ctx.fill();
+  ctx.strokeStyle = STICKER_OUTLINE;
+  ctx.lineWidth = lw * 0.8;
+  ctx.stroke();
 }
 
 function drawTowers(
@@ -369,25 +505,42 @@ function drawTowers(
   col: string,
   time: number
 ): void {
+  // Chunky sticker towers: flat bright slabs, fat outlines, lit windows.
+  const lw = Math.max(4, R * 0.08);
   const towers = [
-    { dx: -R * 0.62, h: R * 1.1, w: R * 0.3 },
-    { dx: 0, h: R * 1.65, w: R * 0.34 },
-    { dx: R * 0.64, h: R * 1.3, w: R * 0.3 }
+    { dx: -R * 0.62, h: R * 1.1, w: R * 0.34, fill: '#8f76d6' },
+    { dx: 0, h: R * 1.65, w: R * 0.4, fill: '#B79CFF' },
+    { dx: R * 0.64, h: R * 1.3, w: R * 0.34, fill: '#8f76d6' }
   ];
   for (let i = 0; i < towers.length; i++) {
     const tw = towers[i];
-    ctx.fillStyle = '#241d3f';
+    ctx.strokeStyle = STICKER_OUTLINE;
+    ctx.lineWidth = lw;
+    ctx.fillStyle = tw.fill;
     ctx.fillRect(x + tw.dx - tw.w / 2, y - tw.h, tw.w, tw.h + R * 0.35);
     ctx.strokeRect(x + tw.dx - tw.w / 2, y - tw.h, tw.w, tw.h + R * 0.35);
+    // Flat amber window squares, a couple lit per tower.
+    const rows = i === 1 ? 5 : 4;
+    for (let r = 0; r < rows; r++) {
+      for (let cIdx = 0; cIdx < 2; cIdx++) {
+        const lit = (r * 2 + cIdx + i) % 3 !== 0;
+        ctx.fillStyle = lit ? '#FFC24D' : '#3a2f5e';
+        const wx = x + tw.dx - tw.w * 0.31 + cIdx * tw.w * 0.36;
+        const wy = y - tw.h + R * 0.14 + r * R * 0.26;
+        ctx.fillRect(wx, wy, tw.w * 0.26, R * 0.14);
+      }
+    }
+    // Antenna and its blinking beacon.
     ctx.beginPath();
     ctx.moveTo(x + tw.dx, y - tw.h);
     ctx.lineTo(x + tw.dx, y - tw.h - R * 0.3);
+    ctx.lineWidth = lw * 0.8;
     ctx.stroke();
     const blink = 0.5 + Math.sin(time * 3 + i * 2.1) * 0.5;
-    ctx.fillStyle = '#ff7288';
+    ctx.fillStyle = '#ff5f7a';
     ctx.globalAlpha = 0.3 + blink * 0.7;
     ctx.beginPath();
-    ctx.arc(x + tw.dx, y - tw.h - R * 0.3, R * 0.05, 0, 6.283);
+    ctx.arc(x + tw.dx, y - tw.h - R * 0.3, R * 0.07, 0, 6.283);
     ctx.fill();
     ctx.globalAlpha = 1;
   }
@@ -449,27 +602,47 @@ function drawArcade(
   col: string,
   time: number
 ): void {
-  // A little building with an awning and a glowing marquee sign.
+  // Chunky sticker arcade: flat rose building, scalloped awning, hot marquee.
+  const lw = Math.max(4, R * 0.08);
+  ctx.strokeStyle = STICKER_OUTLINE;
+  ctx.lineWidth = lw;
+  // Building.
+  ctx.fillStyle = col;
+  ctx.fillRect(x - R * 0.9, y - R * 0.5, R * 1.8, R * 1.2);
   ctx.strokeRect(x - R * 0.9, y - R * 0.5, R * 1.8, R * 1.2);
-  // awning
-  ctx.beginPath();
+  // Awning: filled scallops, alternating white and rose.
   for (let i = 0; i < 4; i++) {
     const ax = x - R * 0.9 + (i * R * 1.8) / 4;
+    ctx.beginPath();
     ctx.moveTo(ax, y - R * 0.5);
-    ctx.quadraticCurveTo(ax + R * 0.225, y - R * 0.32, ax + R * 0.45, y - R * 0.5);
+    ctx.quadraticCurveTo(ax + R * 0.225, y - R * 0.18, ax + R * 0.45, y - R * 0.5);
+    ctx.closePath();
+    ctx.fillStyle = i % 2 === 0 ? '#ffffff' : '#e06a8c';
+    ctx.fill();
+    ctx.stroke();
   }
-  ctx.stroke();
-  // door + screen
+  // Door (dark) and two cyan screens, flat.
+  ctx.fillStyle = '#2a1030';
+  ctx.fillRect(x - R * 0.25, y + R * 0.1, R * 0.5, R * 0.6);
   ctx.strokeRect(x - R * 0.25, y + R * 0.1, R * 0.5, R * 0.6);
+  ctx.fillStyle = '#5EE9D5';
+  ctx.fillRect(x - R * 0.7, y - R * 0.25, R * 0.35, R * 0.28);
   ctx.strokeRect(x - R * 0.7, y - R * 0.25, R * 0.35, R * 0.28);
+  ctx.fillRect(x + R * 0.35, y - R * 0.25, R * 0.35, R * 0.28);
   ctx.strokeRect(x + R * 0.35, y - R * 0.25, R * 0.35, R * 0.28);
-  // marquee, glowing
-  const glow = 0.55 + Math.sin(time * 2.6) * 0.45;
-  ctx.globalAlpha = 0.35 + glow * 0.55;
-  ctx.fillStyle = col;
+  // Marquee: flat amber, pulsing bulbs.
+  ctx.fillStyle = '#FFC24D';
   ctx.fillRect(x - R * 0.95, y - R * 0.95, R * 1.9, R * 0.38);
-  ctx.globalAlpha = 1;
   ctx.strokeRect(x - R * 0.95, y - R * 0.95, R * 1.9, R * 0.38);
+  const glow = 0.55 + Math.sin(time * 2.6) * 0.45;
+  ctx.fillStyle = '#ffffff';
+  ctx.globalAlpha = 0.35 + glow * 0.6;
+  for (let i = 0; i < 5; i++) {
+    ctx.beginPath();
+    ctx.arc(x - R * 0.76 + i * R * 0.38, y - R * 0.76, R * 0.05, 0, 6.283);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
 }
 
 /* ----------------------- the tier fish ----------------------- */

@@ -21,8 +21,11 @@ import type { PlayerState, Vec2 } from './movement';
 import { posAt } from './movement';
 import type { Factory, Cube } from './scenery';
 import type { FlowParticle } from './particles';
+import type { CritterState } from './critters';
 import type { LandmarkCategory, IconKey } from '../lib/fixed-world';
-import { drawIcon, drawHiveMark, drawFish } from './icons';
+import { drawIcon, drawFish, drawBugMark } from './icons';
+import { drawCritters } from './critters';
+import { avatarImage } from './avatars';
 
 export const PALETTE = {
   bg: '#04070f',
@@ -40,7 +43,10 @@ export const PALETTE = {
   hiveLit: '#ff7288',
   hiveBlack: '#212529',
   board: '#123',
-  boardLit: '#5df0ff'
+  boardLit: '#5df0ff',
+  /** The post line: one warm saturated colour, unmistakably a transit line. */
+  route: '#ff9d2b',
+  routeGlow: '#ff7a1f'
 } as const;
 
 export const ACCENT_HEX: Record<string, string> = {
@@ -85,6 +91,8 @@ export interface LandmarkVisual {
   icon: IconKey;
   /** True for the big destination worlds, drawn as structures. */
   world?: boolean;
+  /** Real Hive account whose avatar this landmark wears, if it has one. */
+  handle?: string;
 }
 
 /** A label waiting for the de-collision pass (screen-space, map zoom only). */
@@ -105,6 +113,8 @@ export const lastLabelStats = { placed: 0, shifted: 0, dropped: 0 };
 export interface CommunityVisual {
   label: string;
   radius: number;
+  /** The community's own account name (its avatar is fetched with it). */
+  handle: string;
 }
 
 export interface TrafficMarker {
@@ -139,6 +149,10 @@ export interface RenderScene {
   cubes: Cube[];
   flows: FlowParticle[];
   traffic: TrafficMarker[];
+  /** Edge ids of the post line (and later routes), drawn thick and warm. */
+  routeEdges: Set<number>;
+  /** The inert population; its whole seam lives in engine/critters.ts. */
+  critters: CritterState | null;
   player: PlayerState;
   time: number;
   tierColors: string[];
@@ -262,22 +276,45 @@ export function drawScene(scene: RenderScene): void {
     drawCube(ctx, c);
   }
 
-  // The lines: wobbled curves. Mesh in teal, spokes in violet.
+  // The lines: wobbled curves. Mesh in teal, spokes in violet. At far zoom
+  // the wobble detail is sub-pixel, so the polylines are decimated (and the
+  // joins simplified), which keeps the pulled-out map fast on weak hardware.
+  const stride = z < 0.1 ? 8 : z < 0.3 ? 4 : 2;
   ctx.lineCap = 'round';
-  ctx.lineJoin = 'round';
+  ctx.lineJoin = stride > 2 ? 'bevel' : 'round';
+  const strokeEdge = (e: WorldEdge) => {
+    ctx.beginPath();
+    ctx.moveTo(e.pts[0], e.pts[1]);
+    for (let i = stride; i < e.pts.length - 2; i += stride) ctx.lineTo(e.pts[i], e.pts[i + 1]);
+    ctx.lineTo(e.pts[e.pts.length - 2], e.pts[e.pts.length - 1]);
+    ctx.stroke();
+  };
   for (const kind of ['mesh', 'spoke'] as const) {
     ctx.strokeStyle = kind === 'mesh' ? PALETTE.mesh : PALETTE.spoke;
     ctx.lineWidth = (kind === 'mesh' ? 2.6 : 2.2) / Math.max(z, 0.05);
     ctx.globalAlpha = kind === 'mesh' ? 0.85 : 0.8;
     for (const e of edges) {
       if (e.kind !== kind || !edgeVis(e)) continue;
-      ctx.beginPath();
-      ctx.moveTo(e.pts[0], e.pts[1]);
-      for (let i = 2; i < e.pts.length; i += 2) ctx.lineTo(e.pts[i], e.pts[i + 1]);
-      ctx.stroke();
+      strokeEdge(e);
     }
   }
   ctx.globalAlpha = 1;
+
+  // THE POST LINE: the first subway route. A labeled subset of the mesh
+  // edges drawn noticeably thicker in one warm saturated colour, with a soft
+  // under-glow, clearly distinct from ordinary lines at both zooms.
+  if (scene.routeEdges.size) {
+    for (const pass of [0, 1]) {
+      ctx.strokeStyle = pass === 0 ? PALETTE.routeGlow : PALETTE.route;
+      ctx.lineWidth = (pass === 0 ? 11 : 6.2) / Math.max(z, 0.05);
+      ctx.globalAlpha = pass === 0 ? 0.22 : 0.95;
+      for (const e of edges) {
+        if (!scene.routeEdges.has(e.id) || !edgeVis(e)) continue;
+        strokeEdge(e);
+      }
+    }
+    ctx.globalAlpha = 1;
+  }
 
   // Operation flows: the real counts, moving. Each type its own shape.
   for (const p of scene.flows) {
@@ -372,6 +409,12 @@ export function drawScene(scene: RenderScene): void {
   }
   ctx.globalAlpha = 1;
 
+  // The population: inert critters drifting along the lines. Skipped on the
+  // pulled-out map, where they would be sub-pixel noise.
+  if (scene.critters && mapness < 0.6) {
+    drawCritters(ctx, scene.critters, time, vis);
+  }
+
   // Stake fog.
   const fogAlpha = lerp(0.3, 1, mapness);
   const fogRadius = lerp(0.42, 1, mapness);
@@ -427,11 +470,33 @@ export function drawScene(scene: RenderScene): void {
       ctx.arc(n.x, n.y, rHalo, 0, 6.283);
       ctx.fill();
       ctx.globalAlpha = 1;
-      ctx.fillStyle = col;
-      blobPath(ctx, n.x, n.y, rNode, n.id);
-      ctx.fill();
-      ctx.strokeStyle = '#ffffff';
-      ctx.lineWidth = 1.6 / Math.max(z, 0.2);
+      // The face: the author's real profile photo once it has lazily loaded,
+      // framed by the same rings; until then (or if the load failed) a flat
+      // tier-coloured disc with the account's first letter.
+      const rFace = rNode * 1.18;
+      const img = avatarImage(h.handle);
+      if (img) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(n.x, n.y, rFace, 0, 6.283);
+        ctx.clip();
+        ctx.drawImage(img, n.x - rFace, n.y - rFace, rFace * 2, rFace * 2);
+        ctx.restore();
+      } else {
+        ctx.fillStyle = col;
+        ctx.beginPath();
+        ctx.arc(n.x, n.y, rFace, 0, 6.283);
+        ctx.fill();
+        ctx.fillStyle = '#0b1016';
+        ctx.font = `800 ${rFace * 1.15}px ${MONO}`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(h.handle.charAt(0).toUpperCase(), n.x, n.y + rFace * 0.06);
+      }
+      ctx.strokeStyle = h.isNewcomer ? PALETTE.newRing : '#ffffff';
+      ctx.lineWidth = 1.8 / Math.max(z, 0.2);
+      ctx.beginPath();
+      ctx.arc(n.x, n.y, rFace, 0, 6.283);
       ctx.stroke();
 
       const near = Math.hypot(n.x - player.x, n.y - player.y) < 560;
@@ -458,7 +523,25 @@ export function drawScene(scene: RenderScene): void {
     const col = CATEGORY_HEX[lm.category];
     const minor = lm.icon === 'doc' || lm.icon === 'docq';
     const s = lm.world ? 95 : (minor ? 24 : 36) / Math.max(z, 0.45);
-    drawIcon(ctx, lm.icon, n.x, n.y, s, col, time);
+    // A landmark with a real Hive account wears that account's avatar once
+    // it has loaded; otherwise (and meanwhile) its code-drawn icon.
+    const lmImg = lm.handle ? avatarImage(lm.handle) : null;
+    if (lmImg) {
+      const rA = Math.max(s * 0.95, 30);
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(n.x, n.y, rA, 0, 6.283);
+      ctx.clip();
+      ctx.drawImage(lmImg, n.x - rA, n.y - rA, rA * 2, rA * 2);
+      ctx.restore();
+      ctx.strokeStyle = col;
+      ctx.lineWidth = 2.4 / Math.max(z, 0.2);
+      ctx.beginPath();
+      ctx.arc(n.x, n.y, rA, 0, 6.283);
+      ctx.stroke();
+    } else {
+      drawIcon(ctx, lm.icon, n.x, n.y, s, col, time);
+    }
     const clearance = lm.world ? 230 : s * 1.6;
     if (mapLabels) {
       labelQueue.push({
@@ -495,10 +578,28 @@ export function drawScene(scene: RenderScene): void {
     ctx.arc(n.x, n.y, c.radius, 0, 6.283);
     ctx.stroke();
     ctx.globalAlpha = 1;
-    ctx.fillStyle = '#bfe9ff';
-    ctx.beginPath();
-    ctx.arc(n.x, n.y, 8 / Math.max(z, 0.3), 0, 6.283);
-    ctx.fill();
+    // The community's real avatar floats at the bubble's heart once loaded;
+    // a small bright dot till then.
+    const cImg = avatarImage(c.handle);
+    if (cImg) {
+      const rC = Math.min(c.radius * 0.42, 100);
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(n.x, n.y, rC, 0, 6.283);
+      ctx.clip();
+      ctx.drawImage(cImg, n.x - rC, n.y - rC, rC * 2, rC * 2);
+      ctx.restore();
+      ctx.strokeStyle = '#7fd8ff';
+      ctx.lineWidth = 2.4 / Math.max(z, 0.2);
+      ctx.beginPath();
+      ctx.arc(n.x, n.y, rC, 0, 6.283);
+      ctx.stroke();
+    } else {
+      ctx.fillStyle = '#bfe9ff';
+      ctx.beginPath();
+      ctx.arc(n.x, n.y, 8 / Math.max(z, 0.3), 0, 6.283);
+      ctx.fill();
+    }
     if (mapLabels) {
       labelQueue.push({ x: n.x, y: n.y, under: c.radius, text: c.label, color: '#bfe9ff', priority: 4 });
     } else {
@@ -717,9 +818,11 @@ function drawBug(ctx: CanvasRenderingContext2D, p: PlayerState, time: number): v
   ctx.lineWidth = 1.6;
   ctx.stroke();
 
-  // The real Hive mark on the body. Drawn OUTSIDE any facing flip: the body
-  // flips left/right via `face` offsets only, so the mark never mirrors.
-  drawHiveMark(ctx, 0, 0, 15, '#ffffff');
+  // The glassy Hive mark on the body: molten red glass, dark-outlined so it
+  // reads at play zoom. Drawn OUTSIDE any facing flip: the body faces
+  // left/right via `face` coordinate offsets only, never a flip transform,
+  // so the mark can never appear backwards.
+  drawBugMark(ctx, 0, 0.5, 24);
 
   if (p.mode === 'drift') {
     const f = clamp(p.fuel / 2.4, 0, 1);

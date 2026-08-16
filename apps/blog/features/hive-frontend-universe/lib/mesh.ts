@@ -41,6 +41,18 @@ export interface MeshOptions {
    * set first, so the Gabriel graph wires them into the web organically.
    */
   anchors?: { x: number; y: number }[];
+  /**
+   * Region test for the body's shape. When given, the mesh fills this region
+   * instead of the worldRadius disk; every rule (planarity, degree, angle,
+   * spacing) is enforced exactly the same way inside it.
+   */
+  inside?: (x: number, y: number) => boolean;
+  /**
+   * Seeded sampler returning a point inside the region, used for house
+   * placement when the region is not a disk. Must stay deterministic for a
+   * given rng stream.
+   */
+  samplePoint?: (rng: () => number) => { x: number; y: number };
 }
 
 export interface MeshJunction {
@@ -187,6 +199,7 @@ export function generateMesh(options: MeshOptions): Mesh {
   const t0 = Date.now();
   const { worldRadius, houseRadius, spacing, houseCount } = options;
   const rng = mulberry32(options.seed | 0);
+  const inside = options.inside ?? ((x: number, y: number) => x * x + y * y <= worldRadius * worldRadius);
 
   // 0) Anchors (permanent field landmarks) go in first, at their fixed spots,
   //    so everything else is placed and woven around them.
@@ -204,13 +217,26 @@ export function generateMesh(options: MeshOptions): Mesh {
   const minHouseSep = spacing * 2.1;
   for (let i = 0; i < houseCount; i++) {
     let placed = false;
-    for (let attempt = 0; attempt < 24 && !placed; attempt++) {
-      const f = (i + 0.5) / Math.max(houseCount, 1);
-      const baseR = houseRadius * Math.sqrt(f);
-      const ang = i * GOLDEN_ANGLE + (rng() - 0.5) * 0.9 + attempt * 0.37;
-      const rad = Math.min(houseRadius, baseR * (0.85 + rng() * 0.3) + attempt * spacing * 0.15);
-      const x = Math.cos(ang) * rad;
-      const y = Math.sin(ang) * rad;
+    let lastX = 0;
+    let lastY = 0;
+    for (let attempt = 0; attempt < 36 && !placed; attempt++) {
+      let x: number;
+      let y: number;
+      if (options.samplePoint) {
+        const p = options.samplePoint(rng);
+        x = p.x;
+        y = p.y;
+      } else {
+        const f = (i + 0.5) / Math.max(houseCount, 1);
+        const baseR = houseRadius * Math.sqrt(f);
+        const ang = i * GOLDEN_ANGLE + (rng() - 0.5) * 0.9 + attempt * 0.37;
+        const rad = Math.min(houseRadius, baseR * (0.85 + rng() * 0.3) + attempt * spacing * 0.15);
+        x = Math.cos(ang) * rad;
+        y = Math.sin(ang) * rad;
+      }
+      lastX = x;
+      lastY = y;
+      if (!inside(x, y)) continue;
       let ok = true;
       for (let j = 0; j < px.length; j++) {
         if ((px[j] - x) * (px[j] - x) + (py[j] - y) * (py[j] - y) < minHouseSep * minHouseSep) {
@@ -225,11 +251,11 @@ export function generateMesh(options: MeshOptions): Mesh {
       }
     }
     if (!placed) {
-      // Desperate fallback: park it on an outward spiral arm; overlap is
+      // Desperate fallback: park it at the last sampled point; overlap is
       // preferable to silently dropping a real post.
       const ang = i * GOLDEN_ANGLE;
-      px.push(Math.cos(ang) * houseRadius);
-      py.push(Math.sin(ang) * houseRadius);
+      px.push(options.samplePoint ? lastX : Math.cos(ang) * houseRadius);
+      py.push(options.samplePoint ? lastY : Math.sin(ang) * houseRadius);
     }
   }
   const houses = px.length - anchorCount;
@@ -240,7 +266,7 @@ export function generateMesh(options: MeshOptions): Mesh {
   const active: number[] = [];
   for (let i = 0; i < px.length; i++) active.push(i);
   const fits = (x: number, y: number): boolean => {
-    if (x * x + y * y > worldRadius * worldRadius) return false;
+    if (!inside(x, y)) return false;
     for (const j of grid.near(x, y, spacing)) {
       if ((px[j] - x) * (px[j] - x) + (py[j] - y) * (py[j] - y) < spacing * spacing) return false;
     }
