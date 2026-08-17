@@ -58,8 +58,9 @@ export const WORLD = {
   spacing: 470,
   /** How many house slots (live posts) the world holds. */
   houseSlots: 30,
-  /** Half-extent the full travel map must fit, world px. */
-  fitExtent: 8300,
+  /** Half-extent the full travel map must fit, world px. The witness ring is
+   *  the outermost thing in the world, so the map has to clear it. */
+  fitExtent: 9100,
   /** Communities float this far beyond the coastline, world px. */
   communityCoastOffset: 620,
   /** A safety bound for mask sampling; nothing meaningful beyond this. */
@@ -252,6 +253,52 @@ export function clusterLandmarkIndexes(clusterId: string): number[] {
   return LANDMARKS.map((lm, i) =>
     lm.place.in === 'cluster' && lm.place.cluster === clusterId ? i : -1
   ).filter((i) => i >= 0);
+}
+
+/* --------------------------- the witness ring --------------------------- */
+
+/**
+ * THE CITADEL RING. The real top 21 witnesses stand in a ring OUTSIDE the
+ * whole topography, in rank order, looking in over the chain they produce.
+ *
+ * They are scenery, not destinations: no mesh node, no spoke, nothing to
+ * collide with. That keeps the mesh rules untouched and means the ring can be
+ * as tall and as dramatic as it likes without eating a junction's degree
+ * budget.
+ *
+ * Rank 1 stands due north and the rest run clockwise, so the ring reads as a
+ * ranking rather than as a random scatter. The ellipse is wider than it is
+ * tall because the world is.
+ */
+export const WITNESS_RING = {
+  /** Ring radii, world px. Sized to clear the coast and the offshore clusters. */
+  rx: 7900,
+  ry: 7050,
+  /** Where rank 1 stands, screen degrees (90 is due north). */
+  startDeg: 90,
+  /** Alternating in-and-out stagger so the ring has depth, world px. */
+  stagger: 460
+} as const;
+
+export interface WitnessPost {
+  /** 0-based index; rank is this plus one. */
+  slot: number;
+  x: number;
+  y: number;
+}
+
+/** Where each of the 21 towers stands. Deterministic and identical for all. */
+export function witnessPosts(count: number): WitnessPost[] {
+  return Array.from({ length: count }, (_, i) => {
+    const deg = WITNESS_RING.startDeg - (i / count) * 360;
+    const rad = (deg * Math.PI) / 180;
+    const push = i % 2 === 0 ? WITNESS_RING.stagger : -WITNESS_RING.stagger;
+    return {
+      slot: i,
+      x: Math.cos(rad) * (WITNESS_RING.rx + push),
+      y: -Math.sin(rad) * (WITNESS_RING.ry + push)
+    };
+  });
 }
 
 /* --------------------------- the communities --------------------------- */

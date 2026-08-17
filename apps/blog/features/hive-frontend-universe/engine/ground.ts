@@ -45,12 +45,12 @@ export const GROUND_VOID = '#04030a';
  * drifts toward brown or grey it is wrong.
  */
 const REGION_TONES: readonly string[] = [
-  '#a81a1e',
-  '#5c0a11',
-  '#8c1319',
-  '#43060d',
-  '#96161c',
-  '#6d0e14'
+  '#d3231f',
+  '#7d1017',
+  '#b41a1c',
+  '#5e0b12',
+  '#c11f1e',
+  '#8f1318'
 ];
 
 /**

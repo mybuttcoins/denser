@@ -19,9 +19,10 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from '@/blog/i18n/client';
 import { useBoard } from '../hooks/use-board';
 import { useCommunities } from '../hooks/use-communities';
+import { useWitnesses } from '../hooks/use-witnesses';
 import { HFU_COPY } from '../lib/strings';
 import { TIERS, type Board } from '../lib/board';
-import { WORLD, LANDMARKS, LANDMARK_ACCOUNTS } from '../lib/fixed-world';
+import { WORLD, LANDMARKS, LANDMARK_ACCOUNTS, witnessPosts } from '../lib/fixed-world';
 import { buildRoutes, POST_LINE_ID, DAPPS_LINE_ID } from '../lib/routes';
 import { buildWorld, type GameWorld } from './world';
 import { createCritters, updateCritters, type CritterState } from './critters';
@@ -45,7 +46,8 @@ import {
   type HouseVisual,
   type LandmarkVisual,
   type RouteLayer,
-  type TrafficMarker
+  type TrafficMarker,
+  type WitnessVisual
 } from './render';
 import { placeFactories, placeCubes, placeFormations } from './scenery';
 import { createFlows, updateFlows, flowConfig, type FlowState } from './particles';
@@ -85,6 +87,7 @@ const Centered = ({ children }: { children: React.ReactNode }) => (
 const Stage = ({ board }: { board: Board }) => {
   const { t } = useTranslation('common_blog');
   const { data: communities } = useCommunities();
+  const { data: witnesses } = useWitnesses();
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [atNode, setAtNode] = useState(-1);
@@ -159,10 +162,25 @@ const Stage = ({ board }: { board: Board }) => {
     });
     return list;
   }, [communities]);
-  // The frame loop lives in an effect keyed on the world; the communities
-  // query can resolve later, so the loop reads them through a ref.
+  // The citadel ring: the real top 21, placed on their fixed posts in rank
+  // order. Their avatars are requested eagerly rather than by proximity,
+  // because the ring is meant to read from the pulled-out map and the player
+  // may never walk out to it.
+  const witnessVisuals: WitnessVisual[] = useMemo(() => {
+    if (!witnesses?.length) return [];
+    const posts = witnessPosts(witnesses.length);
+    return witnesses.map((w, i) => ({ name: w.name, rank: w.rank, x: posts[i].x, y: posts[i].y }));
+  }, [witnesses]);
+  useEffect(() => {
+    for (const w of witnessVisuals) requestAvatar(w.name);
+  }, [witnessVisuals]);
+
+  // The frame loop lives in an effect keyed on the world; the communities and
+  // witnesses queries can resolve later, so the loop reads them through refs.
   const communityVisualsRef = useRef(communityVisuals);
   communityVisualsRef.current = communityVisuals;
+  const witnessVisualsRef = useRef(witnessVisuals);
+  witnessVisualsRef.current = witnessVisuals;
 
   // Engine state in refs so the loop never re-creates it.
   const playerRef = useRef<PlayerState>(createPlayer());
@@ -507,6 +525,7 @@ const Stage = ({ board }: { board: Board }) => {
         factories,
         cubes,
         formations,
+        witnesses: witnessVisualsRef.current,
         flows: flowsRef.current?.particles ?? [],
         traffic: trafficRef.current,
         routeLayers,

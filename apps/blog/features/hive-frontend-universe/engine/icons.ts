@@ -145,6 +145,9 @@ export function drawBugMark(ctx: CanvasRenderingContext2D, x: number, y: number,
 /** The sticker outline colour shared by the chunky code-drawn places. */
 const STICKER_OUTLINE = '#160f1d';
 
+/** Monospace stack for the few glyphs drawn inside icons. */
+const ICON_MONO = 'ui-monospace, SFMono-Regular, Menlo, monospace';
+
 /** Fairground colours for the DHF Fun Park gondolas. */
 const GONDOLA_HEX = ['#ff4d6d', '#ffd75e', '#48d17a', '#3fb6ff', '#ff9d4d', '#c77dff'];
 
@@ -159,7 +162,9 @@ export function drawIcon(
   y: number,
   s: number,
   col: string,
-  time: number
+  time: number,
+  /** The landmark's own name, for the few icons that letter themselves. */
+  label?: string
 ): void {
   ctx.save();
   ctx.strokeStyle = col;
@@ -235,17 +240,42 @@ export function drawIcon(
       ctx.lineTo(x - s * 0.75, y + s * 0.95);
       ctx.stroke();
       break;
-    case 'wallet':
-      // Present but closed and grey: not enterable, not inviting.
-      ctx.strokeStyle = '#5a7387';
-      ctx.strokeRect(x - s * 0.7, y - s * 0.45, s * 1.4, s * 0.95);
-      ctx.beginPath();
-      ctx.moveTo(x - s * 0.7, y - s * 0.15);
-      ctx.lineTo(x + s * 0.7, y - s * 0.15);
+    case 'wallet': {
+      // An actual wallet: a chunky billfold with a flap, a clasp, and a note
+      // and a coin peeking out of the top.
+      const ww = s * 0.82;
+      const wh = s * 0.6;
+      const lwW = Math.max(2, s * 0.09);
+      // Banknote sticking out behind the body.
+      ctx.fillStyle = '#8ee87f';
+      ctx.strokeStyle = STICKER_OUTLINE;
+      ctx.lineWidth = lwW;
+      roundRect(ctx, x - ww * 0.55, y - wh - s * 0.16, ww * 1.1, s * 0.34, s * 0.05);
+      ctx.fill();
       ctx.stroke();
-      ctx.fillStyle = '#5a7387';
-      ctx.fillRect(x + s * 0.3, y + 0, s * 0.25, s * 0.2);
+      // Coin peeking out beside it.
+      ctx.beginPath();
+      ctx.arc(x + ww * 0.62, y - wh - s * 0.02, s * 0.17, 0, 6.283);
+      ctx.fillStyle = '#ffd24a';
+      ctx.fill();
+      ctx.stroke();
+      // Body.
+      ctx.fillStyle = '#c4643a';
+      roundRect(ctx, x - ww, y - wh, ww * 2, wh * 2, s * 0.14);
+      ctx.fill();
+      ctx.stroke();
+      // Flap across the lower half.
+      ctx.fillStyle = '#9c4a2a';
+      roundRect(ctx, x - ww, y - wh * 0.05, ww * 2, wh * 1.05, s * 0.12);
+      ctx.fill();
+      ctx.stroke();
+      // Clasp.
+      ctx.fillStyle = '#ffd24a';
+      roundRect(ctx, x - s * 0.14, y - wh * 0.22, s * 0.28, s * 0.24, s * 0.06);
+      ctx.fill();
+      ctx.stroke();
       break;
+    }
     case 'bubble':
       ctx.beginPath();
       ctx.moveTo(x - s * 0.7, y - s * 0.5);
@@ -370,19 +400,70 @@ export function drawIcon(
       ctx.stroke();
       break;
     }
-    case 'flag':
+    case 'flag': {
+      // A proper welcome banner: a striped, waving flag with the place's own
+      // name across it, so you can read where you are from the flag itself.
+      const poleX = x - s * 0.62;
+      const lwF = Math.max(2, s * 0.1);
+      const wave = Math.sin(time * 2.2) * s * 0.07;
+      // Pole plus finial.
+      ctx.strokeStyle = STICKER_OUTLINE;
+      ctx.lineWidth = lwF * 1.2;
       ctx.beginPath();
-      ctx.moveTo(x - s * 0.4, y + s * 0.9);
-      ctx.lineTo(x - s * 0.4, y - s * 0.9);
+      ctx.moveTo(poleX, y + s * 0.95);
+      ctx.lineTo(poleX, y - s * 1.0);
       ctx.stroke();
+      ctx.fillStyle = '#ffd24a';
       ctx.beginPath();
-      ctx.moveTo(x - s * 0.4, y - s * 0.9);
-      ctx.quadraticCurveTo(x + s * 0.2, y - s * (1.05 + 0.06 * Math.sin(time * 3)), x + s * 0.7, y - s * 0.85);
-      ctx.lineTo(x + s * 0.7, y - s * 0.35);
-      ctx.quadraticCurveTo(x + s * 0.2, y - s * 0.55, x - s * 0.4, y - s * 0.4);
+      ctx.arc(poleX, y - s * 1.05, s * 0.1, 0, 6.283);
+      ctx.fill();
+      ctx.stroke();
+
+      // Banner body, four bright stripes, waving at the free edge.
+      const bx = poleX;
+      const by = y - s * 0.98;
+      const bw = s * 1.75;
+      const bh = s * 0.92;
+      const STRIPES = ['#ff4d6d', '#ffa63d', '#48d17a', '#3fb6ff'];
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(bx, by);
+      ctx.quadraticCurveTo(bx + bw * 0.5, by + wave, bx + bw, by - wave * 0.6);
+      ctx.lineTo(bx + bw, by + bh - wave * 0.6);
+      ctx.quadraticCurveTo(bx + bw * 0.5, by + bh + wave, bx, by + bh);
+      ctx.closePath();
+      ctx.clip();
+      for (let i = 0; i < STRIPES.length; i++) {
+        ctx.fillStyle = STRIPES[i];
+        ctx.fillRect(bx, by + (i * bh) / STRIPES.length - s * 0.1, bw, bh / STRIPES.length + s * 0.2);
+      }
+      ctx.restore();
+      // Outline over the stripes.
+      ctx.strokeStyle = STICKER_OUTLINE;
+      ctx.lineWidth = lwF;
+      ctx.beginPath();
+      ctx.moveTo(bx, by);
+      ctx.quadraticCurveTo(bx + bw * 0.5, by + wave, bx + bw, by - wave * 0.6);
+      ctx.lineTo(bx + bw, by + bh - wave * 0.6);
+      ctx.quadraticCurveTo(bx + bw * 0.5, by + bh + wave, bx, by + bh);
       ctx.closePath();
       ctx.stroke();
+
+      // The name, across the banner.
+      if (label) {
+        const text = label.toUpperCase();
+        const fs = Math.min(bh * 0.34, (bw * 1.45) / Math.max(text.length, 1));
+        ctx.font = `800 ${fs}px ${ICON_MONO}`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.lineWidth = Math.max(1.5, fs * 0.3);
+        ctx.strokeStyle = STICKER_OUTLINE;
+        ctx.strokeText(text, bx + bw * 0.5, by + bh * 0.5 + wave * 0.4);
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText(text, bx + bw * 0.5, by + bh * 0.5 + wave * 0.4);
+      }
       break;
+    }
     case 'door':
       ctx.strokeRect(x - s * 0.55, y - s * 0.85, s * 1.1, s * 1.7);
       ctx.beginPath();
@@ -976,6 +1057,308 @@ export function drawFormation(
     ctx.fill();
     ctx.globalAlpha = 1;
   }
+  ctx.restore();
+}
+
+/* ----------------------- witness citadels ----------------------- */
+
+/**
+ * Cached static tower bodies, keyed by energy colour.
+ *
+ * At map zoom the body never animates (the motes, beam, fins and pennant are
+ * all detail-only), so redrawing fifteen paths per tower per frame was pure
+ * waste: 21 towers measured 8.6ms of the frame. The body is rendered once in
+ * NORMALISED units (height 1) and stretched to whatever height a rank needs,
+ * which is why one canvas per colour serves all 21.
+ */
+const CITADEL_TEX_H = 200;
+/** Normalised body box: x in [-0.45, 0.45], y in [-0.82, 0.06], height 1. */
+const CITADEL_BOX = { x0: -0.45, y0: -0.82, w: 0.9, h: 0.88 };
+const citadelBodyCache = new Map<string, HTMLCanvasElement>();
+
+function citadelBody(energy: string): HTMLCanvasElement | null {
+  const hit = citadelBodyCache.get(energy);
+  if (hit) return hit;
+  if (typeof document === 'undefined') return null;
+  const texH = CITADEL_TEX_H;
+  const texW = Math.round((CITADEL_BOX.w / CITADEL_BOX.h) * texH);
+  const canvas = document.createElement('canvas');
+  canvas.width = texW;
+  canvas.height = texH;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return null;
+  const k = texH / CITADEL_BOX.h;
+  ctx.setTransform(k, 0, 0, k, -CITADEL_BOX.x0 * k, -CITADEL_BOX.y0 * k);
+
+  const w = 0.26;
+  const topW = w * 0.56;
+  const shaftTop = -0.74;
+  const stone = '#2a1b3d';
+  const stoneLit = '#402c5c';
+  ctx.lineJoin = 'round';
+  ctx.strokeStyle = STICKER_OUTLINE;
+  ctx.lineWidth = 0.016;
+
+  // Plinth.
+  ctx.fillStyle = stone;
+  ctx.beginPath();
+  ctx.moveTo(-w * 1.6, 0);
+  ctx.lineTo(-w * 1.15, -0.1);
+  ctx.lineTo(w * 1.15, -0.1);
+  ctx.lineTo(w * 1.6, 0);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  // Shaft, two-tone so it reads as lit from one side.
+  for (const side of [-1, 1]) {
+    ctx.fillStyle = side < 0 ? stone : stoneLit;
+    ctx.beginPath();
+    ctx.moveTo(0, -0.1);
+    ctx.lineTo(side * w, -0.1);
+    ctx.lineTo(side * topW, shaftTop);
+    ctx.lineTo(0, shaftTop);
+    ctx.closePath();
+    ctx.fill();
+  }
+  ctx.beginPath();
+  ctx.moveTo(-w, -0.1);
+  ctx.lineTo(-topW, shaftTop);
+  ctx.lineTo(topW, shaftTop);
+  ctx.lineTo(w, -0.1);
+  ctx.closePath();
+  ctx.stroke();
+
+  // Lit gallery.
+  ctx.fillStyle = energy;
+  ctx.globalAlpha = 0.9;
+  ctx.fillRect(-topW * 1.25, shaftTop - 0.045, topW * 2.5, 0.045);
+  ctx.globalAlpha = 1;
+  ctx.strokeStyle = STICKER_OUTLINE;
+  ctx.strokeRect(-topW * 1.25, shaftTop - 0.045, topW * 2.5, 0.045);
+
+  citadelBodyCache.set(energy, canvas);
+  return canvas;
+}
+
+/**
+ * A WITNESS CITADEL: the tower one of the top 21 witnesses keeps, standing
+ * outside the world and looking in over the chain it produces.
+ *
+ * Built bottom up: a rock plinth, a tapering buttressed shaft, a lit gallery,
+ * then a crown holding the witness's own profile photo. Energy pulses UP the
+ * shaft and a beam sweeps from the crown, so the whole ring reads as alive and
+ * producing rather than as statues.
+ *
+ * `rank` is 1 for the top-voted witness. Rank drives size and how hot the
+ * energy runs, so the ring reads as a ranking at a glance. `avatar` is the
+ * decoded profile image, or null while it loads (a lettered disc stands in).
+ * `beat` is a per-tower phase so the ring does not pulse in lockstep.
+ */
+export function drawWitnessCitadel(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  h: number,
+  rank: number,
+  name: string,
+  avatar: HTMLImageElement | null,
+  time: number,
+  beat: number,
+  /** False on the pulled-out map: drops the sweep beam and the climbing motes,
+   *  which are sub-pixel there but cost a clip and two gradients per tower. */
+  detail: boolean
+): void {
+  const w = h * 0.26; // shaft half-width at the base
+  const lw = Math.max(2, h * 0.016);
+  // Top ranks burn hotter and lean gold; the tail of the set runs cooler.
+  const hot = 1 - (rank - 1) / 21;
+  const energy = hot > 0.62 ? '#ffd24a' : hot > 0.3 ? '#7fe3ff' : '#b79cff';
+  const stone = '#2a1b3d';
+  const stoneLit = '#402c5c';
+
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.lineJoin = 'round';
+
+  // Ground pool, so the tower is standing on something.
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.38)';
+  ctx.beginPath();
+  ctx.ellipse(0, 0, w * 2.1, w * 0.62, 0, 0, 6.283);
+  ctx.fill();
+
+  // On the pulled-out map the body is a single cached blit; up close it is
+  // drawn live so the stonework stays crisp.
+  const cached = detail ? null : citadelBody(energy);
+  if (cached) {
+    ctx.drawImage(cached, CITADEL_BOX.x0 * h, CITADEL_BOX.y0 * h, CITADEL_BOX.w * h, CITADEL_BOX.h * h);
+  }
+
+  // Plinth.
+  if (!cached) {
+  ctx.fillStyle = stone;
+  ctx.strokeStyle = STICKER_OUTLINE;
+  ctx.lineWidth = lw;
+  ctx.beginPath();
+  ctx.moveTo(-w * 1.6, 0);
+  ctx.lineTo(-w * 1.15, -h * 0.1);
+  ctx.lineTo(w * 1.15, -h * 0.1);
+  ctx.lineTo(w * 1.6, 0);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  }
+
+  // Shaft: tapers as it rises, with two buttresses.
+  const topW = w * 0.56;
+  const shaftTop = -h * 0.74;
+  if (!cached) {
+  for (const side of [-1, 1]) {
+    ctx.fillStyle = side < 0 ? stone : stoneLit;
+    ctx.beginPath();
+    ctx.moveTo(0, -h * 0.1);
+    ctx.lineTo(side * w, -h * 0.1);
+    ctx.lineTo(side * topW, shaftTop);
+    ctx.lineTo(0, shaftTop);
+    ctx.closePath();
+    ctx.fill();
+  }
+  ctx.beginPath();
+  ctx.moveTo(-w, -h * 0.1);
+  ctx.lineTo(-topW, shaftTop);
+  ctx.lineTo(topW, shaftTop);
+  ctx.lineTo(w, -h * 0.1);
+  ctx.closePath();
+  ctx.stroke();
+  }
+
+  // Buttress fins.
+  if (detail) for (const side of [-1, 1]) {
+    ctx.fillStyle = stone;
+    ctx.beginPath();
+    ctx.moveTo(side * w, -h * 0.1);
+    ctx.lineTo(side * w * 1.5, -h * 0.16);
+    ctx.lineTo(side * w * 0.92, -h * 0.46);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+  }
+
+  // ENERGY: bright motes climbing the shaft, the block production itself.
+  if (detail) {
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(-w, -h * 0.1);
+  ctx.lineTo(-topW, shaftTop);
+  ctx.lineTo(topW, shaftTop);
+  ctx.lineTo(w, -h * 0.1);
+  ctx.closePath();
+  ctx.clip();
+  for (let i = 0; i < 5; i++) {
+    const f = ((time * (0.34 + hot * 0.3) + beat + i / 5) % 1);
+    const my = -h * 0.1 - f * h * 0.64;
+    const mw = topW + (w - topW) * (1 - f);
+    ctx.globalAlpha = 0.22 + (1 - f) * 0.55;
+    ctx.fillStyle = energy;
+    ctx.beginPath();
+    ctx.ellipse(0, my, mw * 0.82, h * 0.022, 0, 0, 6.283);
+    ctx.fill();
+  }
+  ctx.restore();
+  }
+  ctx.globalAlpha = 1;
+
+  // Lit gallery under the crown.
+  if (!cached) {
+  ctx.fillStyle = energy;
+  ctx.globalAlpha = 0.9;
+  ctx.fillRect(-topW * 1.25, shaftTop - h * 0.045, topW * 2.5, h * 0.045);
+  ctx.globalAlpha = 1;
+  ctx.strokeStyle = STICKER_OUTLINE;
+  ctx.strokeRect(-topW * 1.25, shaftTop - h * 0.045, topW * 2.5, h * 0.045);
+  }
+
+  // Sweeping watch beam from the crown, pointing inward over the world.
+  if (detail) {
+  const sweep = Math.sin(time * 0.5 + beat) * 0.5;
+  const beamR = h * 0.9;
+  const bg = ctx.createLinearGradient(0, shaftTop, Math.sin(sweep) * beamR, shaftTop - beamR);
+  bg.addColorStop(0, energy);
+  bg.addColorStop(1, 'rgba(255, 255, 255, 0)');
+  ctx.globalAlpha = 0.16;
+  ctx.fillStyle = bg;
+  ctx.beginPath();
+  ctx.moveTo(0, shaftTop - h * 0.1);
+  ctx.lineTo(Math.sin(sweep - 0.16) * beamR, shaftTop - beamR);
+  ctx.lineTo(Math.sin(sweep + 0.16) * beamR, shaftTop - beamR);
+  ctx.closePath();
+  ctx.fill();
+  ctx.globalAlpha = 1;
+  }
+
+  // The crown: the witness's own face, ringed and lit.
+  const headR = h * 0.16;
+  const headY = shaftTop - h * 0.13;
+  const pulse = 0.5 + Math.sin(time * 1.6 + beat) * 0.5;
+  if (detail) {
+    ctx.globalAlpha = 0.3 + pulse * 0.45;
+    const halo = ctx.createRadialGradient(0, headY, headR * 0.6, 0, headY, headR * 2.4);
+    halo.addColorStop(0, energy);
+    halo.addColorStop(1, 'rgba(255, 255, 255, 0)');
+    ctx.fillStyle = halo;
+    ctx.beginPath();
+    ctx.arc(0, headY, headR * 2.4, 0, 6.283);
+    ctx.fill();
+  } else {
+    // Flat disc instead of a gradient. Building a radial gradient per tower
+    // per frame was most of the ring's cost at map zoom (8.6ms for 21 towers);
+    // at this size the falloff is a couple of pixels and nobody can tell.
+    ctx.globalAlpha = 0.18 + pulse * 0.3;
+    ctx.fillStyle = energy;
+    ctx.beginPath();
+    ctx.arc(0, headY, headR * 1.7, 0, 6.283);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+
+  if (avatar) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(0, headY, headR, 0, 6.283);
+    ctx.clip();
+    ctx.drawImage(avatar, -headR, headY - headR, headR * 2, headR * 2);
+    ctx.restore();
+  } else {
+    ctx.fillStyle = stoneLit;
+    ctx.beginPath();
+    ctx.arc(0, headY, headR, 0, 6.283);
+    ctx.fill();
+    ctx.fillStyle = energy;
+    ctx.font = `800 ${headR * 1.1}px ${ICON_MONO}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(name.charAt(0).toUpperCase(), 0, headY + headR * 0.06);
+  }
+  ctx.strokeStyle = energy;
+  ctx.lineWidth = lw * 1.8;
+  ctx.beginPath();
+  ctx.arc(0, headY, headR, 0, 6.283);
+  ctx.stroke();
+
+  // Rank pennant, so the ring reads as an order.
+  if (detail) {
+  ctx.fillStyle = energy;
+  ctx.strokeStyle = STICKER_OUTLINE;
+  ctx.lineWidth = lw;
+  ctx.beginPath();
+  ctx.moveTo(topW * 1.25, shaftTop - h * 0.022);
+  ctx.lineTo(topW * 1.25 + h * 0.15, shaftTop - h * 0.055);
+  ctx.lineTo(topW * 1.25, shaftTop - h * 0.088);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  }
+
   ctx.restore();
 }
 

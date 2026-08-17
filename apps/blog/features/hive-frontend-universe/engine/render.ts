@@ -23,7 +23,14 @@ import type { Factory, Cube, Formation } from './scenery';
 import type { FlowParticle } from './particles';
 import type { CritterState } from './critters';
 import type { LandmarkCategory, IconKey } from '../lib/fixed-world';
-import { drawIcon, drawFish, drawBugMark, drawFormation, drawCommunityEmblem } from './icons';
+import {
+  drawIcon,
+  drawFish,
+  drawBugMark,
+  drawFormation,
+  drawCommunityEmblem,
+  drawWitnessCitadel
+} from './icons';
 import { drawCritters } from './critters';
 import { avatarImage } from './avatars';
 import { drawGround, GROUND_VOID, type Ground } from './ground';
@@ -191,6 +198,15 @@ export interface CommunityVisual {
   handle: string;
 }
 
+/** One citadel on the witness ring. */
+export interface WitnessVisual {
+  name: string;
+  /** 1 for the top-voted witness, through 21. */
+  rank: number;
+  x: number;
+  y: number;
+}
+
 export interface TrafficMarker {
   edge: number;
   from: number;
@@ -223,6 +239,11 @@ export interface RenderScene {
   cubes: Cube[];
   /** Spiky rock formations standing on the terrain. Inert scenery. */
   formations: Formation[];
+  /**
+   * The top 21 witnesses, ringing the world in rank order. Scenery: no mesh
+   * node, nothing to collide with, nothing to travel to.
+   */
+  witnesses: WitnessVisual[];
   flows: FlowParticle[];
   traffic: TrafficMarker[];
   /**
@@ -368,6 +389,39 @@ export function drawScene(scene: RenderScene): void {
     for (const f of scene.formations) {
       if (!vis(f.x, f.y)) continue;
       drawFormation(ctx, f.x, f.y, f.h, f.shards, f.hue, f.phase, f.lean, time);
+    }
+  }
+
+  // THE WITNESS RING: the real top 21, standing outside the world in rank
+  // order and looking in. Drawn at a fixed world size so they stay legible on
+  // the pulled-out map, which is where the ring reads as a ring.
+  for (const wt of scene.witnesses) {
+    const towerH = 1150 - (wt.rank - 1) * 18;
+    if (wt.x + towerH < vx0 || wt.x - towerH > vx1 || wt.y + towerH < vy0 || wt.y - towerH > vy1) {
+      continue;
+    }
+    drawWitnessCitadel(
+      ctx,
+      wt.x,
+      wt.y,
+      towerH,
+      wt.rank,
+      wt.name,
+      avatarImage(wt.name),
+      time,
+      wt.rank * 0.7,
+      z >= 0.12
+    );
+    if (mapLabels) {
+      // Lowest priority: 21 more labels must never push a place off the map.
+      labelQueue.push({
+        x: wt.x,
+        y: wt.y,
+        under: 60,
+        text: `${wt.rank}. ${wt.name}`,
+        color: '#ffd7a8',
+        priority: 0
+      });
     }
   }
 
@@ -688,7 +742,7 @@ export function drawScene(scene: RenderScene): void {
       ctx.arc(n.x, n.y, rA, 0, 6.283);
       ctx.stroke();
     } else {
-      drawIcon(ctx, lm.icon, n.x, n.y, s, col, time);
+      drawIcon(ctx, lm.icon, n.x, n.y, s, col, time, lm.label);
     }
     const clearance = lm.big ? BIG_SPAN * 1.15 : s * 1.6;
     if (mapLabels) {
