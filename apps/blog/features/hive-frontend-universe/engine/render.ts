@@ -19,26 +19,26 @@
 import type { WorldEdge, WorldNode } from './world';
 import type { PlayerState, Vec2 } from './movement';
 import { posAt } from './movement';
-import type { Factory, Cube } from './scenery';
+import type { Factory, Cube, Formation } from './scenery';
 import type { FlowParticle } from './particles';
 import type { CritterState } from './critters';
 import type { LandmarkCategory, IconKey } from '../lib/fixed-world';
-import { drawIcon, drawFish, drawBugMark } from './icons';
+import { drawIcon, drawFish, drawBugMark, drawFormation, drawCommunityEmblem } from './icons';
 import { drawCritters } from './critters';
 import { avatarImage } from './avatars';
 import { drawGround, GROUND_VOID, type Ground } from './ground';
 
 export const PALETTE = {
   bg: GROUND_VOID,
-  star: '#9fb6d8',
+  star: '#bcd2f0',
   /**
    * Ordinary lines are STREETS, NOT STARS: dim and desaturated so they sit on
    * the terrain instead of floating over it. The post line and the landmarks
    * are what the eye should catch.
    */
-  mesh: '#5d7f96',
-  spoke: '#8877ad',
-  junction: '#5b7c92',
+  mesh: '#6fbcd8',
+  spoke: '#ac92f0',
+  junction: '#7fd0e8',
   newRing: '#5df0ff',
   traffic: '#9fd6e4',
   factory: '#31435a',
@@ -221,6 +221,8 @@ export interface RenderScene {
   communities: (CommunityVisual | undefined)[];
   factories: Factory[];
   cubes: Cube[];
+  /** Spiky rock formations standing on the terrain. Inert scenery. */
+  formations: Formation[];
   flows: FlowParticle[];
   traffic: TrafficMarker[];
   /**
@@ -359,6 +361,16 @@ export function drawScene(scene: RenderScene): void {
     drawGround(ctx, scene.ground, vx0, vy0, vx1, vy1, z);
   }
 
+  // Rock formations: spiky crystal clutches standing on the terrain, under
+  // everything travelable. Skipped on the pulled-out map, where 190 clutches
+  // of shards would be sub-pixel noise and pure cost.
+  if (mapness < 0.72) {
+    for (const f of scene.formations) {
+      if (!vis(f.x, f.y)) continue;
+      drawFormation(ctx, f.x, f.y, f.h, f.shards, f.hue, f.phase, f.lean, time);
+    }
+  }
+
   // Cubes: transparent, colourful, under the lines for depth.
   for (const c of scene.cubes) {
     if (!vis(c.x, c.y)) continue;
@@ -380,10 +392,14 @@ export function drawScene(scene: RenderScene): void {
   };
   for (const kind of ['mesh', 'spoke'] as const) {
     ctx.strokeStyle = kind === 'mesh' ? PALETTE.mesh : PALETTE.spoke;
-    ctx.lineWidth = (kind === 'mesh' ? 1.8 : 1.7) / Math.max(z, 0.05);
-    // Thin, dim and cool: these are the local streets. The two named lines
-    // are what the eye should catch.
-    ctx.globalAlpha = kind === 'mesh' ? 0.34 : 0.32;
+    // ANY line you are meant to travel along has to look travelable. Pass
+    // seven thinned these to 1.8px to push the named routes forward, which
+    // went too far: the streets read as hairlines you would not think to ride.
+    // Streets are fat where you ride them and slimmer on the pulled-out map,
+    // where nobody is travelling and the extra fill was costing real frame time.
+    const streetW = (kind === 'mesh' ? 3.4 : 3.1) * (z < 0.12 ? 0.5 : 1);
+    ctx.lineWidth = streetW / Math.max(z, 0.05);
+    ctx.globalAlpha = kind === 'mesh' ? 0.62 : 0.58;
     for (const e of edges) {
       if (e.kind !== kind || !edgeVis(e)) continue;
       strokeEdge(e);
@@ -713,26 +729,31 @@ export function drawScene(scene: RenderScene): void {
     ctx.arc(n.x, n.y, c.radius, 0, 6.283);
     ctx.stroke();
     ctx.globalAlpha = 1;
+    // An animated emblem chosen from the community's own NAME, so each bubble
+    // reads as its own place rather than as one of ten identical circles.
+    drawCommunityEmblem(ctx, c.handle, n.x, n.y, c.radius * 0.82, time);
+
     // The community's real avatar floats at the bubble's heart once loaded;
-    // a small bright dot till then.
+    // a small bright dot till then. Noticeably bigger than pass seven drew it,
+    // since the logo is the thing that identifies the place.
     const cImg = avatarImage(c.handle);
     if (cImg) {
-      const rC = Math.min(c.radius * 0.42, 100);
+      const rC = Math.min(c.radius * 0.62, 190);
       ctx.save();
       ctx.beginPath();
       ctx.arc(n.x, n.y, rC, 0, 6.283);
       ctx.clip();
       ctx.drawImage(cImg, n.x - rC, n.y - rC, rC * 2, rC * 2);
       ctx.restore();
-      ctx.strokeStyle = '#7fd8ff';
-      ctx.lineWidth = 2.4 / Math.max(z, 0.2);
+      ctx.strokeStyle = here ? '#d8f4ff' : '#7fd8ff';
+      ctx.lineWidth = (here ? 5 : 3.4) / Math.max(z, 0.2);
       ctx.beginPath();
       ctx.arc(n.x, n.y, rC, 0, 6.283);
       ctx.stroke();
     } else {
       ctx.fillStyle = '#bfe9ff';
       ctx.beginPath();
-      ctx.arc(n.x, n.y, 8 / Math.max(z, 0.3), 0, 6.283);
+      ctx.arc(n.x, n.y, 12 / Math.max(z, 0.3), 0, 6.283);
       ctx.fill();
     }
     if (mapLabels) {

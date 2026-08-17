@@ -47,7 +47,7 @@ import {
   type RouteLayer,
   type TrafficMarker
 } from './render';
-import { placeFactories, placeCubes } from './scenery';
+import { placeFactories, placeCubes, placeFormations } from './scenery';
 import { createFlows, updateFlows, flowConfig, type FlowState } from './particles';
 import { Controls } from './controls';
 import { HouseCard } from '../card/house-card';
@@ -111,14 +111,14 @@ const Stage = ({ board }: { board: Board }) => {
         casing: '#1a0d05',
         glow: PALETTE.routeGlow,
         core: PALETTE.route,
-        width: 6.8
+        width: 9.2
       },
       {
         edges: byId(DAPPS_LINE_ID),
         casing: '#04141c',
         glow: PALETTE.dappsGlow,
         core: PALETTE.dapps,
-        width: 4.2,
+        width: 6.2,
         dash: [30, 22]
       }
     ];
@@ -182,6 +182,7 @@ const Stage = ({ board }: { board: Board }) => {
 
   const factories = useMemo(() => placeFactories(world, board.windowStart), [world, board.windowStart]);
   const cubes = useMemo(() => placeCubes(world, board.windowStart), [world, board.windowStart]);
+  const formations = useMemo(() => placeFormations(world, board.windowStart), [world, board.windowStart]);
   const flowCfg = useMemo(() => flowConfig(board.counts), [board.counts]);
 
   const toggleFullMap = () => {
@@ -505,6 +506,7 @@ const Stage = ({ board }: { board: Board }) => {
         communities: communityVisualsRef.current,
         factories,
         cubes,
+        formations,
         flows: flowsRef.current?.particles ?? [],
         traffic: trafficRef.current,
         routeLayers,
@@ -563,7 +565,7 @@ const Stage = ({ board }: { board: Board }) => {
     // Visual arrays are read via closure each frame; the world identity is
     // what must rebuild the loop.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [world, board, factories, cubes, flowCfg, ground]);
+  }, [world, board, factories, cubes, formations, flowCfg, ground]);
 
   const skip = () => {
     const p = playerRef.current;

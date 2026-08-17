@@ -98,7 +98,7 @@ export const CLUSTERS: readonly Cluster[] = [
   // Records: hop-only, off the east blade's southern arm. Pulled in from
   // (4620, 4520), where the measured gap was 1.2-1.36x the max hop and the
   // cluster was therefore stranded despite being labelled hoppable.
-  { id: 'records', x: 4300, y: 4200, link: 'hop', satellites: [] },
+  { id: 'records', x: 4130, y: 4030, link: 'hop', satellites: [] },
   // Launch: pulled in from (7480, -1400), where the gap measured 1.85-1.99x
   // the max hop and the cluster was a wall. Pass seven removes every
   // uncrossable gap in the world, so this is now a short hop like the others.
@@ -106,7 +106,15 @@ export const CLUSTERS: readonly Cluster[] = [
   // The gateway: likewise pulled in from (-8250, -600). Note that the nearest
   // lines out here are the community bubbles off the diamond's west coast,
   // not the coast itself, so its gap is measured against those.
-  { id: 'gateway', x: -7130, y: -600, link: 'hop', satellites: [[60, 430], [300, 430]] }
+  { id: 'gateway', x: -7130, y: -600, link: 'hop', satellites: [[60, 430], [300, 430]] },
+
+  /* ---- decentralised offshoots: little stars trailing off into space ---- */
+  // These hold no landmarks. They exist so the world does not simply stop at
+  // the coast: rail keeps going out into the dark in the classic
+  // decentralised-network shape, and every one of them is travelable.
+  { id: 'driftpost', x: -4550, y: -4750, link: 'trail', satellites: [[70, 470], [140, 430], [255, 450]] },
+  { id: 'farside', x: 6250, y: 2450, link: 'trail', satellites: [[20, 460], [95, 430], [300, 470]] },
+  { id: 'deepfield', x: -450, y: 6250, link: 'trail', satellites: [[80, 450], [200, 470], [330, 430]] }
 ];
 
 /* ---------------------------- the landmarks ---------------------------- */
@@ -255,18 +263,36 @@ export function clusterLandmarkIndexes(clusterId: string): number[] {
  */
 export const COMMUNITY_ORIGIN = { x: -3000, y: 100, land: 0 } as const;
 
-/** Ten fixed slots along the diamond's west and south-west coast. */
-export const COMMUNITY_ARC = { startDeg: 128, endDeg: 244, slots: 10 } as const;
+/**
+ * Ten fixed slots sweeping the diamond's whole northern, western and southern
+ * coast. The arc was 128 to 244 degrees, which stacked all ten communities
+ * down one short stretch of shore; at 96 to 292 they get most of the coastline
+ * and stop crowding each other.
+ */
+export const COMMUNITY_ARC = { startDeg: 96, endDeg: 292, slots: 10 } as const;
 
 export interface CommunitySlot {
   slot: number;
   angleDeg: number;
+  /**
+   * Per-slot multiplier on the coastal offset. Staggering how far out each
+   * bubble floats spreads them in depth as well as around the arc, so they
+   * read as a scattered archipelago rather than a string of beads.
+   */
+  spread: number;
 }
+
+/** Fixed stagger pattern, so the archipelago is identical for everyone. */
+const SPREAD_PATTERN = [1, 1.62, 0.82, 1.34, 1.05, 1.78, 0.9, 1.45, 1.16, 1.9] as const;
 
 export function communitySlots(): CommunitySlot[] {
   const { startDeg, endDeg, slots } = COMMUNITY_ARC;
   const step = (endDeg - startDeg) / (slots - 1);
-  return Array.from({ length: slots }, (_, i) => ({ slot: i, angleDeg: startDeg + i * step }));
+  return Array.from({ length: slots }, (_, i) => ({
+    slot: i,
+    angleDeg: startDeg + i * step,
+    spread: SPREAD_PATTERN[i % SPREAD_PATTERN.length]
+  }));
 }
 
 /**

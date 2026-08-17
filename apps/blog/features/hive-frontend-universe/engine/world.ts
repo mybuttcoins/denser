@@ -431,7 +431,7 @@ export function buildWorld(windowStart: number, houseCount: number): GameWorld {
     }
     for (const [ang, m] of attempts) {
       const coast = coastDistanceAt(ang);
-      const p = rimPosition(ang, coast + WORLD.communityCoastOffset * m);
+      const p = rimPosition(ang, coast + WORLD.communityCoastOffset * m * slot.spread);
       const cands = railCandidateIds
         .map((id) => ({ id, d: Math.hypot(p.x - px[id], p.y - py[id]) }))
         .filter((c) => degree[c.id] < MESH_MAX_DEGREE && c.d < 1250)
@@ -463,7 +463,7 @@ export function buildWorld(windowStart: number, houseCount: number): GameWorld {
     // strand of bubbles along the arc still reaches the body by rail).
     {
       const coast = coastDistanceAt(slot.angleDeg);
-      const p = rimPosition(slot.angleDeg, coast + WORLD.communityCoastOffset);
+      const p = rimPosition(slot.angleDeg, coast + WORLD.communityCoastOffset * slot.spread);
       const neighbours = placedBubbles
         .map((id) => ({ id, d: Math.hypot(p.x - px[id], p.y - py[id]) }))
         .filter((c) => degree[c.id] < MESH_MAX_DEGREE && c.d < 1250)

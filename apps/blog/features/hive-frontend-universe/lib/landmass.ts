@@ -126,9 +126,13 @@ const CELL_DATA: readonly number[] = [
  * line could only serve one piece, and map travel silently refused every
  * landmark off the spawn's landmass. Pass seven reverses that.
  *
- * These hand-tuned chains of small cells are narrow land bridges across the
- * two narrowest crossings (both measured at about 1310px of open water). They
- * are ordinary land as far as the mask and the mesh are concerned, so the
+ * These hand-tuned chains of small cells are narrow land bridges. There are
+ * FOUR of them: a northern and a southern crossing between each adjacent pair
+ * of landmasses, so the world has a ring rather than a single chokepoint and
+ * a player never has to double back the length of a blade to change piece.
+ * Each was placed at the narrowest open water in its half (1312 to 1417px).
+ *
+ * They are ordinary land as far as the mask and the mesh are concerned, so the
  * weave runs across them under the same rules as everywhere else and no
  * special-case bridging code exists anywhere. Only the paint treats them
  * differently, dimming so the three-piece mark still reads.
@@ -136,7 +140,33 @@ const CELL_DATA: readonly number[] = [
  * Move a bridge by editing these coordinates; widen one by raising its radii.
  */
 const STRAIT_CELLS: readonly BodyCell[] = [
-  // diamond to centre_blade
+  /* ---- NORTHERN crossings ---- */
+  // diamond to centre_blade, north (1348px of open water at its narrowest)
+  { x: -1156, y: -1623, r: 193, land: 0, strait: true },
+  { x: -1033, y: -1714, r: 207, land: 0, strait: true },
+  { x: -791, y: -1856, r: 220, land: 0, strait: true },
+  { x: -664, y: -1937, r: 229, land: 0, strait: true },
+  { x: -532, y: -2010, r: 234, land: 0, strait: true },
+  { x: -396, y: -2073, r: 234, land: 1, strait: true },
+  { x: -256, y: -2126, r: 229, land: 1, strait: true },
+  { x: -112, y: -2171, r: 220, land: 1, strait: true },
+  { x: 153, y: -2264, r: 207, land: 1, strait: true },
+  { x: 302, y: -2299, r: 193, land: 1, strait: true },
+  // centre_blade to east_blade, north (1417px at its narrowest)
+  { x: 1187, y: -2796, r: 193, land: 1, strait: true },
+  { x: 1327, y: -2831, r: 206, land: 1, strait: true },
+  { x: 1583, y: -2923, r: 218, land: 1, strait: true },
+  { x: 1720, y: -2965, r: 227, land: 1, strait: true },
+  { x: 1853, y: -3014, r: 233, land: 1, strait: true },
+  { x: 1984, y: -3070, r: 235, land: 2, strait: true },
+  { x: 2110, y: -3134, r: 233, land: 2, strait: true },
+  { x: 2233, y: -3205, r: 227, land: 2, strait: true },
+  { x: 2353, y: -3283, r: 218, land: 2, strait: true },
+  { x: 2588, y: -3421, r: 206, land: 2, strait: true },
+  { x: 2704, y: -3506, r: 193, land: 2, strait: true },
+
+  /* ---- SOUTHERN crossings ---- */
+  // diamond to centre_blade, south
   { x: -1086, y: 1653, r: 205, land: 0, strait: true },
   { x: -982, y: 1759, r: 220, land: 0, strait: true },
   { x: -761, y: 1939, r: 234, land: 0, strait: true },
@@ -147,7 +177,7 @@ const STRAIT_CELLS: readonly BodyCell[] = [
   { x: -156, y: 2344, r: 234, land: 1, strait: true },
   { x: 95, y: 2479, r: 220, land: 1, strait: true },
   { x: 233, y: 2535, r: 205, land: 1, strait: true },
-  // centre_blade to east_blade
+  // centre_blade to east_blade, south
   { x: 2060, y: 1530, r: 205, land: 1, strait: true },
   { x: 2188, y: 1609, r: 220, land: 1, strait: true },
   { x: 2413, y: 1785, r: 234, land: 1, strait: true },

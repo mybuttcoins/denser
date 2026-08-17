@@ -13,6 +13,27 @@
  */
 
 import type { GameWorld } from './world';
+import { insideBody, sampleBodyPoint } from '../lib/fixed-world';
+
+/**
+ * A spiky rock formation standing on the landmass: a clutch of crystalline
+ * shards with lit tips, the terrain of a space base rather than a park. Inert
+ * scenery, exactly like the cubes; nothing collides with these.
+ */
+export interface Formation {
+  x: number;
+  y: number;
+  /** Height of the tallest shard, world px. */
+  h: number;
+  /** How many shards in the clutch. */
+  shards: number;
+  /** Index into the formation palette. */
+  hue: number;
+  /** Seeded shape phase, so no two clutches are identical. */
+  phase: number;
+  /** Lean of the whole clutch, radians. */
+  lean: number;
+}
 
 export interface Factory {
   junction: number;
@@ -63,6 +84,60 @@ export function placeFactories(world: GameWorld, seed: number): Factory[] {
     });
   }
   return factories;
+}
+
+/** How many rock formations to scatter over the whole landmass. */
+const FORMATION_COUNT = 190;
+/** Formations keep this clear of any junction so they never sit on a line. */
+const FORMATION_CLEARANCE = 260;
+
+/**
+ * Spiky rock formations scattered across the terrain, well spread and well
+ * clear of the rails. Placement is rejection-sampled inside the landmass mask,
+ * so formations never appear in the void or on a strait bridge, and never
+ * crowd a junction the player has to read.
+ */
+export function placeFormations(world: GameWorld, seed: number): Formation[] {
+  const rng = mulberry32(seed ^ 0x5caff0);
+  const out: Formation[] = [];
+  // A coarse bucket grid over the nodes, so the clearance test stays cheap.
+  const CELL = FORMATION_CLEARANCE;
+  const buckets = new Map<number, { x: number; y: number }[]>();
+  const key = (cx: number, cy: number) => (cx + 4096) * 8192 + (cy + 4096);
+  for (const n of world.nodes) {
+    const k = key(Math.floor(n.x / CELL), Math.floor(n.y / CELL));
+    const arr = buckets.get(k);
+    if (arr) arr.push(n);
+    else buckets.set(k, [n]);
+  }
+  const tooCloseToRail = (x: number, y: number): boolean => {
+    const cx = Math.floor(x / CELL);
+    const cy = Math.floor(y / CELL);
+    for (let ox = -1; ox <= 1; ox++) {
+      for (let oy = -1; oy <= 1; oy++) {
+        for (const n of buckets.get(key(cx + ox, cy + oy)) ?? []) {
+          if (Math.hypot(n.x - x, n.y - y) < FORMATION_CLEARANCE) return true;
+        }
+      }
+    }
+    return false;
+  };
+
+  for (let attempt = 0; attempt < FORMATION_COUNT * 14 && out.length < FORMATION_COUNT; attempt++) {
+    const p = sampleBodyPoint(rng);
+    if (!insideBody(p.x, p.y) || tooCloseToRail(p.x, p.y)) continue;
+    const big = rng() < 0.16;
+    out.push({
+      x: p.x,
+      y: p.y,
+      h: big ? 210 + rng() * 190 : 70 + rng() * 110,
+      shards: 2 + Math.floor(rng() * 4),
+      hue: Math.floor(rng() * 5),
+      phase: rng() * Math.PI * 2,
+      lean: (rng() - 0.5) * 0.34
+    });
+  }
+  return out;
 }
 
 /**

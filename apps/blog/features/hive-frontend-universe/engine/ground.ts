@@ -45,12 +45,12 @@ export const GROUND_VOID = '#04030a';
  * drifts toward brown or grey it is wrong.
  */
 const REGION_TONES: readonly string[] = [
-  '#4a1020',
-  '#3d0d1a',
-  '#551426',
-  '#420f1d',
-  '#4e1223',
-  '#360b17'
+  '#a81a1e',
+  '#5c0a11',
+  '#8c1319',
+  '#43060d',
+  '#96161c',
+  '#6d0e14'
 ];
 
 /**
@@ -59,7 +59,7 @@ const REGION_TONES: readonly string[] = [
  * so close to the void that the rail lines looked like they were crossing open
  * water rather than a bridge.
  */
-const STRAIT_DIM = 0.62;
+const STRAIT_DIM = 0.5;
 
 /** How many regions each landmass is divided into. */
 const REGIONS_PER_LANDMASS = 4;
@@ -82,6 +82,17 @@ export interface Ground {
   cellPathsCoarse: Path2D[];
   /** Opaque base fill colour per cell (its region's tone). */
   cellColors: string[];
+  /**
+   * The whole base layer flattened into one texture, used at map zoom.
+   *
+   * The cells overlap three or four deep, so filling all 468 of them covers
+   * the screen several times over. That overdraw measured 8.4ms of a 17.5ms
+   * frame at map zoom, and it is pure waste there because the result is a
+   * still image. Baked once, it becomes a single blit. Play zoom still uses
+   * the real paths, where only a handful are on screen and the coast has to
+   * be crisp.
+   */
+  baseTex: HTMLCanvasElement | null;
   /** Bounding box per cell, for viewport culling. */
   cellBox: { x0: number; y0: number; x1: number; y1: number }[];
   /** Additive interior bloom plus coastal rim. */
@@ -155,11 +166,11 @@ function buildGlass(
   ctx.globalCompositeOperation = 'lighter';
   for (let i = 0; i < BODY_CELLS.length; i++) {
     const c = BODY_CELLS[i];
-    const strength = c.strait ? 0.16 : 0.3;
+    const strength = c.strait ? 0.11 : 0.22;
     const g = ctx.createRadialGradient(c.x, c.y, 0, c.x, c.y, c.r * 1.05);
-    g.addColorStop(0, `rgba(255, 58, 74, ${strength})`);
-    g.addColorStop(0.55, `rgba(214, 30, 58, ${strength * 0.45})`);
-    g.addColorStop(1, 'rgba(150, 12, 40, 0)');
+    g.addColorStop(0, `rgba(255, 46, 52, ${strength})`);
+    g.addColorStop(0.55, `rgba(226, 26, 34, ${strength * 0.5})`);
+    g.addColorStop(1, 'rgba(170, 10, 20, 0)');
     ctx.fillStyle = g;
     ctx.beginPath();
     ctx.arc(c.x, c.y, c.r * 1.05, 0, 6.283);
@@ -171,7 +182,7 @@ function buildGlass(
   if (rimMade) {
     const rctx = rimMade.ctx;
     rctx.setTransform(scale, 0, 0, scale, -box.x * scale, -box.y * scale);
-    rctx.fillStyle = '#ff5a6e';
+    rctx.fillStyle = '#ff4d4d';
     for (let i = 0; i < BODY_CELLS.length; i++) rctx.fill(blobPath(i));
     rctx.globalCompositeOperation = 'destination-out';
     for (let i = 0; i < BODY_CELLS.length; i++) {
@@ -185,7 +196,7 @@ function buildGlass(
     }
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.globalCompositeOperation = 'lighter';
-    ctx.globalAlpha = 0.55;
+    ctx.globalAlpha = 0.62;
     ctx.filter = 'blur(1.5px)';
     ctx.drawImage(rimMade.canvas, 0, 0);
     ctx.filter = 'none';
@@ -193,6 +204,24 @@ function buildGlass(
   }
 
   ctx.globalCompositeOperation = 'source-over';
+  return canvas;
+}
+
+/** Flattens the opaque base fills into one texture for the pulled-out map. */
+function buildBaseTex(
+  box: { x: number; y: number; w: number; h: number },
+  texW: number,
+  colors: string[]
+): HTMLCanvasElement | null {
+  const scale = texW / box.w;
+  const made = makeCanvas(texW, Math.max(1, Math.round(box.h * scale)));
+  if (!made) return null;
+  const { canvas, ctx } = made;
+  ctx.setTransform(scale, 0, 0, scale, -box.x * scale, -box.y * scale);
+  for (let i = 0; i < BODY_CELLS.length; i++) {
+    ctx.fillStyle = colors[i];
+    ctx.fill(blobPath(i));
+  }
   return canvas;
 }
 
@@ -205,7 +234,7 @@ function buildHalo(box: { x: number; y: number; w: number; h: number }): HTMLCan
   const { canvas, ctx } = made;
   ctx.setTransform(scale, 0, 0, scale, -box.x * scale, -box.y * scale);
   ctx.filter = 'blur(7px)';
-  ctx.fillStyle = '#c4213f';
+  ctx.fillStyle = '#d81624';
   for (const c of BODY_CELLS) {
     ctx.beginPath();
     ctx.arc(c.x, c.y, c.r * 1.1, 0, 6.283);
@@ -277,6 +306,7 @@ export function buildGround(windowStart: number): Ground {
     cellPathsCoarse,
     cellColors,
     cellBox,
+    baseTex: buildBaseTex(texBox, 1536, cellColors),
     glass: buildGlass(texBox, 1536),
     halo: buildHalo(texBox),
     texBox,
@@ -298,21 +328,27 @@ export function drawGround(
   /** Camera zoom; below the LOD threshold the coarse outlines are used. */
   z: number
 ): void {
-  const paths = z < GROUND_LOD_Z ? g.cellPathsCoarse : g.cellPaths;
+  const far = z < GROUND_LOD_Z;
 
   // Halo first, under the land.
   if (g.halo) {
-    ctx.globalAlpha = 0.42;
+    ctx.globalAlpha = 0.5;
     ctx.drawImage(g.halo, g.texBox.x, g.texBox.y, g.texBox.w, g.texBox.h);
     ctx.globalAlpha = 1;
   }
 
-  // Opaque base, so overlaps union without seams.
-  for (let i = 0; i < paths.length; i++) {
-    const b = g.cellBox[i];
-    if (b.x1 < vx0 || b.x0 > vx1 || b.y1 < vy0 || b.y0 > vy1) continue;
-    ctx.fillStyle = g.cellColors[i];
-    ctx.fill(paths[i]);
+  // Opaque base, so overlaps union without seams. One blit on the pulled-out
+  // map, real paths up close.
+  if (far && g.baseTex) {
+    ctx.drawImage(g.baseTex, g.texBox.x, g.texBox.y, g.texBox.w, g.texBox.h);
+  } else {
+    const paths = far ? g.cellPathsCoarse : g.cellPaths;
+    for (let i = 0; i < paths.length; i++) {
+      const b = g.cellBox[i];
+      if (b.x1 < vx0 || b.x0 > vx1 || b.y1 < vy0 || b.y0 > vy1) continue;
+      ctx.fillStyle = g.cellColors[i];
+      ctx.fill(paths[i]);
+    }
   }
 
   // The glass on top: interior bloom and coastal rim, added.
