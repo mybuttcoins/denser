@@ -801,7 +801,8 @@
     },
     "hud": {
       "houses": "房屋",
-      "window": "窗口"
+      "window": "窗口",
+      "tokens": "代币"
     },
     "map": {
       "hint": "点按地标即可前往",

@@ -903,7 +903,8 @@
     },
     "hud": {
       "houses": "HOUSES",
-      "window": "WINDOW"
+      "window": "WINDOW",
+      "tokens": "TOKENS"
     },
     "map": {
       "hint": "Tap a landmark to travel there",

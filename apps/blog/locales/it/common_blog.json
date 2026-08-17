@@ -801,7 +801,8 @@
     },
     "hud": {
       "houses": "CASE",
-      "window": "FINESTRA"
+      "window": "FINESTRA",
+      "tokens": "GETTONI"
     },
     "map": {
       "hint": "Tocca un luogo per viaggiarci",

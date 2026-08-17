@@ -24,8 +24,17 @@ import { HFU_COPY } from '../lib/strings';
 import { TIERS, type Board } from '../lib/board';
 import { WORLD, LANDMARKS, LANDMARK_ACCOUNTS, witnessPosts } from '../lib/fixed-world';
 import { buildRoutes, POST_LINE_ID, DAPPS_LINE_ID } from '../lib/routes';
+import {
+  landmarkHref,
+  profileHref,
+  communityHref,
+  postHref,
+  type MapTarget,
+  type TargetKind
+} from '../lib/targets';
 import { buildWorld, type GameWorld } from './world';
 import { createCritters, updateCritters, type CritterState } from './critters';
+import { createCoins, updateCoins, type CoinState } from './coins';
 import { buildGround } from './ground';
 import { requestAvatar, avatarStats } from './avatars';
 import { getUserAvatarUrl } from '@ui/lib/avatar-utils';
@@ -96,6 +105,10 @@ const Stage = ({ board }: { board: Board }) => {
   const [fullMap, setFullMap] = useState(false);
   /** Slot of the community bubble the bug is standing in, or -1 for none. */
   const [inCommunity, setInCommunity] = useState(-1);
+  /** The thing under the cursor, named in a chip since nothing is lettered. */
+  const [hover, setHover] = useState<{ title: string; kind: TargetKind; sx: number; sy: number } | null>(null);
+  /** A clicked witness citadel, which has no world node of its own. */
+  const [clickedWitness, setClickedWitness] = useState<{ title: string; href: string | null } | null>(null);
 
   const world: GameWorld = useMemo(
     () => buildWorld(board.windowStart, board.houses.length),
@@ -194,6 +207,7 @@ const Stage = ({ board }: { board: Board }) => {
   const trafficRef = useRef<TrafficMarker[]>([]);
   const flowsRef = useRef<FlowState | null>(null);
   const crittersRef = useRef<CritterState | null>(null);
+  const coinsRef = useRef<CoinState | null>(null);
   const atNodeTick = useRef(-1);
   const inCommunityTick = useRef(-1);
   const mKeyDownAt = useRef(0);
@@ -219,6 +233,8 @@ const Stage = ({ board }: { board: Board }) => {
     const { edges, incident, nodes } = world;
     flowsRef.current = createFlows(world);
     crittersRef.current = createCritters(world, board.windowStart);
+    // Tokens minted from the window's REAL custom_json count.
+    coinsRef.current = createCoins(world, board.counts.customJson, board.windowStart);
 
     // Spawn just inside the mesh beside the Basecamp landmark.
     const basecampIdx = LANDMARKS.findIndex((lm) => lm.id === 'basecamp');
@@ -286,75 +302,174 @@ const Stage = ({ board }: { board: Board }) => {
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('keyup', onKeyUp);
 
-    /** World radius of a house marker's HIT TARGET: at least half again the
-     * visual marker radius, because the visual alone was too hard to hit. */
-    const houseHitRadius = (): number => {
-      const rNode = Math.min(12 / Math.max(camRef.current.z, 0.35), 130);
-      return rNode * 1.18 * 1.6;
-    };
-    const houseAt = (clientX: number, clientY: number): number => {
+    /**
+     * What is under the cursor. Nothing on the map is lettered any more, so
+     * this one hit test feeds BOTH the hover chip that names things and the
+     * click that jumps to them. Radii are generous on purpose: these are the
+     * only way to read the map now.
+     */
+    const targetAt = (clientX: number, clientY: number): MapTarget | null => {
       const rect = canvas.getBoundingClientRect();
       const cam = camRef.current;
       const wx = (clientX - rect.left - W / 2) / cam.z + cam.x;
       const wy = (clientY - rect.top - H / 2) / cam.z + cam.y;
-      let best = -1;
-      let bestD = houseHitRadius();
-      for (const n of nodes) {
-        if (n.kind !== 'house' || !houseVisuals[n.ref]) continue;
-        const d = Math.hypot(n.x - wx, n.y - wy);
-        if (d < bestD) {
+      const z = cam.z;
+      let best: MapTarget | null = null;
+      let bestD = Infinity;
+      const consider = (target: MapTarget, radius: number) => {
+        const d = Math.hypot(target.x - wx, target.y - wy);
+        if (d < radius && d < bestD) {
           bestD = d;
-          best = n.id;
+          best = target;
         }
+      };
+
+      // Posts: the marker radius grew this pass, and the hit target stays half
+      // again bigger than the art.
+      const rNode = Math.min(17 / Math.max(z, 0.35), 180);
+      for (const n of nodes) {
+        if (n.kind !== 'house') continue;
+        const h = houseVisuals[n.ref];
+        const post = board.houses[n.ref];
+        if (!h || !post) continue;
+        consider(
+          {
+            kind: 'post',
+            node: n.id,
+            title: `@${h.handle}`,
+            href: postHref(post.post?.url, post.post?.author ?? h.handle, post.post?.permlink ?? ''),
+            travelable: false,
+            x: n.x,
+            y: n.y
+          },
+          rNode * 1.18 * 1.6
+        );
+      }
+
+      // Places.
+      for (const n of nodes) {
+        if (n.kind !== 'landmark') continue;
+        const lm = LANDMARKS[n.ref];
+        const vis = landmarkVisuals[n.ref];
+        if (!lm || !vis) continue;
+        const minor = lm.icon === 'doc' || lm.icon === 'docq';
+        const reach = lm.big ? 420 : ((minor ? 34 : 52) / Math.max(z, 0.45)) * 1.5;
+        consider(
+          {
+            kind: 'landmark',
+            node: n.id,
+            title: vis.label,
+            href: landmarkHref(lm.kind, lm.path),
+            travelable: world.travelReachable[n.id],
+            x: n.x,
+            y: n.y
+          },
+          reach
+        );
+      }
+
+      // Community bubbles: the whole bubble is the target.
+      for (const n of nodes) {
+        if (n.kind !== 'community') continue;
+        const c = communityVisualsRef.current[n.ref];
+        const meta = communities?.[n.ref];
+        if (!c || !meta) continue;
+        consider(
+          {
+            kind: 'community',
+            node: n.id,
+            title: c.label,
+            href: communityHref(meta.name),
+            travelable: world.travelReachable[n.id],
+            x: n.x,
+            y: n.y
+          },
+          c.radius
+        );
+      }
+
+      // Witness citadels: scenery, so they have no node, but they still lead
+      // somewhere real. Aim at the crowned head, which is where the eye goes.
+      for (const wt of witnessVisualsRef.current) {
+        const towerH = 1680 - (wt.rank - 1) * 22;
+        consider(
+          {
+            kind: 'witness',
+            node: -1,
+            title: `${wt.rank}. ${wt.name}`,
+            href: profileHref(wt.name),
+            travelable: false,
+            x: wt.x,
+            y: wt.y - towerH * 0.87
+          },
+          towerH * 0.34
+        );
       }
       return best;
     };
 
-    // Full-map travel: click a fixed landmark to warp the bug there. Targets
-    // are the places the bug could reach under its own power, which is what
-    // `travelReachable` measures: rail-reachable from the spawn, plus the
-    // offshore clusters whose gap fits inside one drift ring. The map never
-    // offers a jump the bug itself could not make.
+    /**
+     * One click handler for the whole world, at both zooms.
+     *
+     * On the FULL MAP a travelable place warps the bug there and opens its
+     * panel on arrival, so one click gets you there and the next gets you to
+     * the page. Anything that cannot be travelled to (a witness citadel is
+     * scenery) opens its page directly, because there is nothing else it could
+     * usefully do.
+     *
+     * At PLAY zoom a click opens the thing's panel rather than navigating,
+     * because a stray click while riding should never throw you out of the
+     * game.
+     */
     const onCanvasClick = (e: MouseEvent) => {
-      if (!fullMapRef.current) {
-        // Play zoom: tapping a post marker (generous target) opens its card.
-        const hit = houseAt(e.clientX, e.clientY);
-        setClickedNode(hit);
+      const target = targetAt(e.clientX, e.clientY);
+      if (!target) {
+        setClickedNode(-1);
+        setClickedWitness(null);
         return;
       }
-      const rect = canvas.getBoundingClientRect();
-      const cam = camRef.current;
-      const wx = (e.clientX - rect.left - W / 2) / cam.z + cam.x;
-      const wy = (e.clientY - rect.top - H / 2) / cam.z + cam.y;
-      const threshold = 44 / cam.z;
-      let best = -1;
-      let bestD = threshold;
-      for (const n of nodes) {
-        if (n.kind !== 'landmark' && n.kind !== 'community') continue;
-        if (!world.travelReachable[n.id]) continue;
-        const d = Math.hypot(n.x - wx, n.y - wy);
-        if (d < bestD) {
-          bestD = d;
-          best = n.id;
-        }
-      }
-      if (best >= 0) {
-        placeAt(p, edges, incident, best);
-        p.skipped = best; // arrive without instantly opening the panel
+      if (fullMapRef.current && target.travelable && target.node >= 0) {
+        placeAt(p, edges, incident, target.node);
         warpFxRef.current = 1;
         fullMapRef.current = false;
         setFullMap(false);
-      }
-    };
-    canvas.addEventListener('click', onCanvasClick);
-    const onCanvasMove = (e: MouseEvent) => {
-      if (fullMapRef.current) {
-        canvas.style.cursor = 'pointer';
+        setClickedNode(target.node);
+        setClickedWitness(null);
         return;
       }
-      canvas.style.cursor = houseAt(e.clientX, e.clientY) >= 0 ? 'pointer' : 'default';
+      if (target.kind === 'witness') {
+        setClickedWitness({ title: target.title, href: target.href });
+        setClickedNode(-1);
+        if (fullMapRef.current && target.href) {
+          window.open(target.href, '_blank', 'noopener,noreferrer');
+        }
+        return;
+      }
+      setClickedWitness(null);
+      setClickedNode(target.node);
+    };
+    canvas.addEventListener('click', onCanvasClick);
+
+    // Hover names the thing under the cursor, which is the only way to read
+    // the map now that nothing is lettered.
+    const onCanvasMove = (e: MouseEvent) => {
+      const target = targetAt(e.clientX, e.clientY);
+      canvas.style.cursor = target ? 'pointer' : 'default';
+      const rect = canvas.getBoundingClientRect();
+      setHover(
+        target
+          ? {
+              title: target.title,
+              kind: target.kind,
+              sx: e.clientX - rect.left,
+              sy: e.clientY - rect.top
+            }
+          : null
+      );
     };
     canvas.addEventListener('mousemove', onCanvasMove);
+    const onCanvasLeave = () => setHover(null);
+    canvas.addEventListener('mouseleave', onCanvasLeave);
 
     const readInput = () => {
       const keys = keysRef.current;
@@ -476,6 +591,9 @@ const Stage = ({ board }: { board: Board }) => {
       updateTraffic(dt);
       if (flowsRef.current) updateFlows(flowsRef.current, world, flowCfg, p.x, p.y, dt);
       if (crittersRef.current) updateCritters(crittersRef.current, world, dt);
+      // The HUD is painted on the canvas every frame, so the token counts
+      // need no React state to stay current.
+      if (coinsRef.current) updateCoins(coinsRef.current, p, crittersRef.current, factories, dt);
       requestNearbyAvatars(dt);
       camUpdate(dt);
 
@@ -530,6 +648,7 @@ const Stage = ({ board }: { board: Board }) => {
         traffic: trafficRef.current,
         routeLayers,
         critters: crittersRef.current,
+        coins: coinsRef.current,
         ground,
         activeCommunity: inCommunityTick.current,
         player: p,
@@ -538,6 +657,9 @@ const Stage = ({ board }: { board: Board }) => {
         shake,
         warpFx: warpFxRef.current,
         hud: {
+          tokensLabel: t('hive_frontend_universe.hud.tokens'),
+          carried: coinsRef.current?.carried ?? 0,
+          banked: coinsRef.current?.banked ?? 0,
           housesLabel: t('hive_frontend_universe.hud.houses'),
           windowLabel: t('hive_frontend_universe.hud.window'),
           housesCount: board.houses.length,
@@ -580,6 +702,7 @@ const Stage = ({ board }: { board: Board }) => {
       window.removeEventListener('keyup', onKeyUp);
       canvas.removeEventListener('click', onCanvasClick);
       canvas.removeEventListener('mousemove', onCanvasMove);
+      canvas.removeEventListener('mouseleave', onCanvasLeave);
     };
     // Visual arrays are read via closure each frame; the world identity is
     // what must rebuild the loop.
@@ -595,15 +718,16 @@ const Stage = ({ board }: { board: Board }) => {
     }
     setAtNode(-1);
     setClickedNode(-1);
+    setClickedWitness(null);
   };
 
   // A clicked post marker wins over the parked-at node for the card.
   const shownNode = clickedNode >= 0 ? clickedNode : atNode;
   const node = shownNode >= 0 ? world.nodes[shownNode] : undefined;
   const atHouse = node?.kind === 'house' && board.houses[node.ref] ? board.houses[node.ref] : null;
-  const atLandmark = node?.kind === 'landmark' && clickedNode < 0 ? LANDMARKS[node.ref] : null;
+  const atLandmark = node?.kind === 'landmark' ? LANDMARKS[node.ref] : null;
   const atCommunity: TopCommunity | null =
-    node?.kind === 'community' && clickedNode < 0 && communities ? communities[node.ref] ?? null : null;
+    node?.kind === 'community' && communities ? communities[node.ref] ?? null : null;
   /** The community the bug is standing in, for the "You are here" banner. */
   const insideCommunity: TopCommunity | null =
     inCommunity >= 0 && communities ? communities[inCommunity] ?? null : null;
@@ -639,6 +763,35 @@ const Stage = ({ board }: { board: Board }) => {
           />
           <span>{t('hive_frontend_universe.map.in_community', { name: insideCommunity.title })}</span>
         </div>
+      ) : null}
+
+      {/*
+        THE HOVER CHIP. Nothing on the map is lettered any more, so this is
+        how you read it: point at anything and it names itself. Display only,
+        and it never eats a click.
+      */}
+      {hover ? (
+        <div
+          className="pointer-events-none absolute z-20 -translate-x-1/2 -translate-y-full rounded-md border border-white/20 bg-black/85 px-2 py-1 font-mono text-xs font-semibold text-[#e9f4f8] shadow-lg"
+          style={{ left: hover.sx, top: hover.sy - 12 }}
+          data-testid="hfu-hover-chip"
+        >
+          {hover.title}
+        </div>
+      ) : null}
+
+      {/*
+        A clicked witness citadel. Citadels are scenery with no world node, so
+        they get their own small panel rather than the landmark one.
+      */}
+      {clickedWitness ? (
+        <LandmarkPanel
+          title={clickedWitness.title}
+          kind={clickedWitness.href ? 'external' : 'none'}
+          path={clickedWitness.href ?? ''}
+          accent="amber"
+          onSkip={() => setClickedWitness(null)}
+        />
       ) : null}
 
       {!fullMap && atHouse ? <HouseCard house={atHouse} onSkip={skip} /> : null}

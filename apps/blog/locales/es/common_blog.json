@@ -801,7 +801,8 @@
     },
     "hud": {
       "houses": "CASAS",
-      "window": "VENTANA"
+      "window": "VENTANA",
+      "tokens": "FICHAS"
     },
     "map": {
       "hint": "Toca un lugar para viajar allí",

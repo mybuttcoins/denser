@@ -145,6 +145,18 @@ export function drawBugMark(ctx: CanvasRenderingContext2D, x: number, y: number,
 /** The sticker outline colour shared by the chunky code-drawn places. */
 const STICKER_OUTLINE = '#160f1d';
 
+/**
+ * Energy colours for the citadel ring, one per rank. Bright and varied on
+ * purpose: at map zoom the towers were reading as a row of identical lamps.
+ */
+const WITNESS_ENERGY = [
+  '#ffd24a', '#ff6b9d', '#5eead4', '#a78bfa', '#fb923c',
+  '#38bdf8', '#f472b6', '#4ade80', '#facc15', '#c084fc',
+  '#2dd4bf', '#fb7185', '#60a5fa', '#fbbf24', '#34d399',
+  '#e879f9', '#22d3ee', '#f87171', '#a3e635', '#818cf8',
+  '#fdba74'
+];
+
 /** Monospace stack for the few glyphs drawn inside icons. */
 const ICON_MONO = 'ui-monospace, SFMono-Regular, Menlo, monospace';
 
@@ -1171,9 +1183,11 @@ export function drawWitnessCitadel(
 ): void {
   const w = h * 0.26; // shaft half-width at the base
   const lw = Math.max(2, h * 0.016);
-  // Top ranks burn hotter and lean gold; the tail of the set runs cooler.
+  // A playful spectrum around the ring rather than three sober tiers: each
+  // citadel burns its own colour, so the ring reads as a carnival of keepers
+  // and you can tell one tower from another at a glance.
   const hot = 1 - (rank - 1) / 21;
-  const energy = hot > 0.62 ? '#ffd24a' : hot > 0.3 ? '#7fe3ff' : '#b79cff';
+  const energy = WITNESS_ENERGY[(rank - 1) % WITNESS_ENERGY.length];
   const stone = '#2a1b3d';
   const stoneLit = '#402c5c';
 

@@ -801,7 +801,8 @@
     },
     "hud": {
       "houses": "MAISONS",
-      "window": "FENÊTRE"
+      "window": "FENÊTRE",
+      "tokens": "JETONS"
     },
     "map": {
       "hint": "Touchez un lieu pour vous y rendre",

@@ -32,6 +32,7 @@ import {
   drawWitnessCitadel
 } from './icons';
 import { drawCritters } from './critters';
+import { drawCoins, type CoinState } from './coins';
 import { avatarImage } from './avatars';
 import { drawGround, GROUND_VOID, type Ground } from './ground';
 
@@ -176,21 +177,6 @@ export interface LandmarkVisual {
   handle?: string;
 }
 
-/** A label waiting for the de-collision pass (screen-space, map zoom only). */
-interface LabelRequest {
-  x: number;
-  y: number;
-  /** Clearance below the anchor before the label can sit under it. */
-  under: number;
-  text: string;
-  color: string;
-  /** Higher wins a spot when labels fight. */
-  priority: number;
-}
-
-/** Measured results of the last label de-collision pass, for verification. */
-export const lastLabelStats = { placed: 0, shifted: 0, dropped: 0 };
-
 export interface CommunityVisual {
   label: string;
   radius: number;
@@ -253,6 +239,8 @@ export interface RenderScene {
   routeLayers: RouteLayer[];
   /** The inert population; its whole seam lives in engine/critters.ts. */
   critters: CritterState | null;
+  /** JSON tokens, what carries them and what steals them. */
+  coins: CoinState | null;
   /** The filled landmasses under everything; built once per window. */
   ground: Ground | null;
   /** Slot of the community bubble the bug is standing in, or -1. Display only. */
@@ -263,7 +251,15 @@ export interface RenderScene {
   shake?: number;
   /** Warp effect countdown, 1 → 0. */
   warpFx?: number;
-  hud: { housesLabel: string; windowLabel: string; housesCount: number; windowTime: string };
+  hud: {
+    housesLabel: string;
+    windowLabel: string;
+    housesCount: number;
+    windowTime: string;
+    tokensLabel: string;
+    carried: number;
+    banked: number;
+  };
 }
 
 function lerp(a: number, b: number, t: number): number {
@@ -301,10 +297,11 @@ function blobPath(ctx: CanvasRenderingContext2D, x: number, y: number, r: number
 export function drawScene(scene: RenderScene): void {
   const { ctx, W, H, DPR, cam, nodes, edges, player, time, mapness } = scene;
 
-  // Labels go through a de-collision pass at map zoom instead of being drawn
-  // in place, so no two labels overlap on the pulled-out map.
-  const mapLabels = mapness > 0.55;
-  const labelQueue: LabelRequest[] = [];
+  // NOTHING ON THIS MAP IS LETTERED. Names used to be painted beside every
+  // post, place, community and tower, and at map zoom that was most of the
+  // pixels: the map read as a list rather than as a world. Identity is now
+  // carried by the art (profile photos, emblems, illustrated places) and the
+  // NAME APPEARS ON HOVER, in the DOM layer above the canvas.
 
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   ctx.fillStyle = PALETTE.bg;
@@ -396,7 +393,8 @@ export function drawScene(scene: RenderScene): void {
   // order and looking in. Drawn at a fixed world size so they stay legible on
   // the pulled-out map, which is where the ring reads as a ring.
   for (const wt of scene.witnesses) {
-    const towerH = 1150 - (wt.rank - 1) * 18;
+    // Bigger than pass nine: the citadels were getting lost against the map.
+    const towerH = 1680 - (wt.rank - 1) * 22;
     if (wt.x + towerH < vx0 || wt.x - towerH > vx1 || wt.y + towerH < vy0 || wt.y - towerH > vy1) {
       continue;
     }
@@ -412,17 +410,6 @@ export function drawScene(scene: RenderScene): void {
       wt.rank * 0.7,
       z >= 0.12
     );
-    if (mapLabels) {
-      // Lowest priority: 21 more labels must never push a place off the map.
-      labelQueue.push({
-        x: wt.x,
-        y: wt.y,
-        under: 60,
-        text: `${wt.rank}. ${wt.name}`,
-        color: '#ffd7a8',
-        priority: 0
-      });
-    }
   }
 
   // Cubes: transparent, colourful, under the lines for depth.
@@ -584,11 +571,6 @@ export function drawScene(scene: RenderScene): void {
     ctx.beginPath();
     ctx.arc(scratch.x, scratch.y, 3, 0, 6.283);
     ctx.fill();
-    if (z > 0.4) {
-      ctx.globalAlpha = a * 0.55;
-      ctx.font = `500 10px ${MONO}`;
-      ctx.fillText(m.handle, scratch.x, scratch.y - 10);
-    }
   }
   ctx.globalAlpha = 1;
 
@@ -596,6 +578,12 @@ export function drawScene(scene: RenderScene): void {
   // pulled-out map, where they would be sub-pixel noise.
   if (scene.critters && mapness < 0.6) {
     drawCritters(ctx, scene.critters, time, vis);
+  }
+
+  // JSON tokens, the trunk of whatever is stealing them, and what the bug is
+  // carrying. Skipped on the pulled-out map, where a token is sub-pixel.
+  if (scene.coins && mapness < 0.6) {
+    drawCoins(ctx, scene.coins, scene.critters, player, time, z, vis);
   }
 
   // Stake fog.
@@ -635,7 +623,7 @@ export function drawScene(scene: RenderScene): void {
         continue;
       }
       const col = scene.tierColors[h.tier];
-      const rNode = Math.min(12 / Math.max(z, 0.35), 130);
+      const rNode = Math.min(17 / Math.max(z, 0.35), 180);
       const rHalo = rNode * (2.1 + mapness * 1.6);
       if (h.isNewcomer) {
         const beat = 0.5 + Math.sin(time * 1.9 + n.id) * 0.5;
@@ -682,18 +670,6 @@ export function drawScene(scene: RenderScene): void {
       ctx.arc(n.x, n.y, rFace, 0, 6.283);
       ctx.stroke();
 
-      const near = Math.hypot(n.x - player.x, n.y - player.y) < 560;
-      const col2 = h.isNewcomer ? PALETTE.newRing : PALETTE.text;
-      if (mapLabels) {
-        labelQueue.push({ x: n.x, y: n.y, under: rHalo, text: `@${h.handle}`, color: col2, priority: 1 });
-      } else if (z > 0.3 && near) {
-        const fs = Math.min(12 / z, 360);
-        ctx.font = `600 ${fs}px ${MONO}`;
-        ctx.fillStyle = col2;
-        ctx.globalAlpha = 0.9;
-        ctx.fillText(`@${h.handle}`, n.x, n.y - rNode - fs * 0.75);
-        ctx.globalAlpha = 1;
-      }
     }
   }
 
@@ -709,7 +685,10 @@ export function drawScene(scene: RenderScene): void {
     // marker, so they stay huge on the pulled-out map. Everything else is
     // sized in screen space and stays modest, which is what makes the five
     // stand out instead of competing.
-    const s = lm.big ? (BIG_SIZE[lm.icon] ?? 300) : (minor ? 24 : 36) / Math.max(z, 0.45);
+    // Bigger than before: with the names gone the art has to carry identity
+    // on its own, so an ordinary marker grew from 36 to 52 and the minor
+    // paperwork from 24 to 34.
+    const s = lm.big ? (BIG_SIZE[lm.icon] ?? 300) : (minor ? 34 : 52) / Math.max(z, 0.45);
     // The black hole is the one big place that must NOT look welcoming, so it
     // is the one that does not get the warm pool.
     if (lm.big && lm.icon !== 'blackhole') {
@@ -743,22 +722,6 @@ export function drawScene(scene: RenderScene): void {
       ctx.stroke();
     } else {
       drawIcon(ctx, lm.icon, n.x, n.y, s, col, time, lm.label);
-    }
-    const clearance = lm.big ? BIG_SPAN * 1.15 : s * 1.6;
-    if (mapLabels) {
-      labelQueue.push({
-        x: n.x,
-        y: n.y,
-        under: clearance,
-        text: lm.label,
-        color: col,
-        priority: lm.big ? 6 : minor ? 2 : 3
-      });
-    } else {
-      const fs = Math.min(13 / z, 400);
-      ctx.font = `700 ${fs}px ${MONO}`;
-      ctx.fillStyle = col;
-      ctx.fillText(lm.label, n.x, n.y - clearance - fs * 0.6);
     }
   }
 
@@ -810,13 +773,6 @@ export function drawScene(scene: RenderScene): void {
       ctx.arc(n.x, n.y, 12 / Math.max(z, 0.3), 0, 6.283);
       ctx.fill();
     }
-    if (mapLabels) {
-      labelQueue.push({ x: n.x, y: n.y, under: c.radius, text: c.label, color: '#bfe9ff', priority: 4 });
-    } else {
-      const fs = Math.min(13 / z, 400);
-      ctx.font = `700 ${fs}px ${MONO}`;
-      ctx.fillText(c.label, n.x, n.y - c.radius - fs * 0.7);
-    }
   }
 
   drawBug(ctx, player, time);
@@ -863,58 +819,6 @@ export function drawScene(scene: RenderScene): void {
   }
 
   ctx.restore();
-
-  // The map-zoom label pass: place every queued label in screen space,
-  // nudging or dropping so that no two labels ever overlap.
-  if (labelQueue.length) {
-    lastLabelStats.placed = 0;
-    lastLabelStats.shifted = 0;
-    lastLabelStats.dropped = 0;
-    const placedRects: { x0: number; y0: number; x1: number; y1: number }[] = [];
-    const fs = 12;
-    ctx.font = `700 ${fs}px ${MONO}`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    labelQueue.sort((a, b) => b.priority - a.priority);
-    for (const req of labelQueue) {
-      const sxp = (req.x - cam.x) * z + W / 2 + sx;
-      const syp = (req.y - cam.y) * z + H / 2 + sy;
-      if (sxp < -60 || sxp > W + 60 || syp < -60 || syp > H + 60) continue;
-      const w = req.text.length * fs * 0.62 + 8;
-      const h = fs * 1.35;
-      const off = req.under * z + 9;
-      const spots = [syp - off, syp + off + 4, syp - off - h - 2, syp + off + h + 6];
-      let chosen = -1;
-      for (let i = 0; i < spots.length; i++) {
-        const y0 = spots[i] - h / 2;
-        const y1 = spots[i] + h / 2;
-        const x0 = sxp - w / 2;
-        const x1 = sxp + w / 2;
-        let clash = false;
-        for (const r of placedRects) {
-          if (x0 < r.x1 && x1 > r.x0 && y0 < r.y1 && y1 > r.y0) {
-            clash = true;
-            break;
-          }
-        }
-        if (!clash) {
-          chosen = i;
-          placedRects.push({ x0, y0, x1, y1 });
-          break;
-        }
-      }
-      if (chosen < 0) {
-        lastLabelStats.dropped++;
-        continue;
-      }
-      if (chosen > 0) lastLabelStats.shifted++;
-      lastLabelStats.placed++;
-      ctx.fillStyle = req.color;
-      ctx.globalAlpha = 0.95;
-      ctx.fillText(req.text, sxp, spots[chosen]);
-      ctx.globalAlpha = 1;
-    }
-  }
 
   drawHud(scene);
 }
@@ -963,6 +867,8 @@ function drawHud(scene: RenderScene): void {
   ctx.fillText(`${hud.housesLabel} ${hud.housesCount}`, 16, 14);
   ctx.fillStyle = PALETTE.textDim;
   ctx.fillText(`${hud.windowLabel} ${hud.windowTime}`, 16, 33);
+  ctx.fillStyle = '#ffd24a';
+  ctx.fillText(`${hud.tokensLabel} ${hud.carried} / ${hud.banked}`, 16, 52);
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
 }

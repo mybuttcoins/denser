@@ -806,7 +806,8 @@
     },
     "hud": {
       "houses": "DOMY",
-      "window": "OKNO"
+      "window": "OKNO",
+      "tokens": "ŻETONY"
     },
     "map": {
       "hint": "Dotknij miejsca, aby tam podróżować",
