@@ -22,17 +22,19 @@ import { posAt } from './movement';
 import type { Factory, Cube, Formation } from './scenery';
 import type { FlowParticle } from './particles';
 import type { CritterState } from './critters';
-import type { LandmarkCategory, IconKey } from '../lib/fixed-world';
+import { TROLL_HOLES, type LandmarkCategory, type IconKey } from '../lib/fixed-world';
 import {
   drawIcon,
   drawFish,
   drawBugMark,
   drawFormation,
   drawCommunityEmblem,
-  drawWitnessCitadel
+  drawWitnessCitadel,
+  drawTrollHole
 } from './icons';
 import { drawCritters } from './critters';
 import { drawCoins, type CoinState } from './coins';
+import { drawHelmets, drawSuitBubble, type HelmetState } from './helmets';
 import { avatarImage } from './avatars';
 import { drawGround, GROUND_VOID, type Ground } from './ground';
 
@@ -145,6 +147,7 @@ const BIG_SIZE: Partial<Record<IconKey, number>> = {
   towers: 168,
   arcadebldg: 133,
   blackhole: 119,
+  jsonboss: 165,
   tent: 350
 };
 
@@ -241,6 +244,8 @@ export interface RenderScene {
   critters: CritterState | null;
   /** JSON tokens, what carries them and what steals them. */
   coins: CoinState | null;
+  /** The 21 oxygen helmets and how many the player has compiled. */
+  helmetState: HelmetState | null;
   /** The filled landmasses under everything; built once per window. */
   ground: Ground | null;
   /** Slot of the community bubble the bug is standing in, or -1. Display only. */
@@ -259,6 +264,9 @@ export interface RenderScene {
     tokensLabel: string;
     carried: number;
     banked: number;
+    helmetsLabel: string;
+    helmets: number;
+    helmetTotal: number;
   };
 }
 
@@ -410,6 +418,13 @@ export function drawScene(scene: RenderScene): void {
       wt.rank * 0.7,
       z >= 0.12
     );
+  }
+
+  // The Mighty J SON's troll holes, sunk into the terrain. The keep is a
+  // landmark and draws itself; these are the in-land mouths of his network.
+  for (const hole of TROLL_HOLES) {
+    if (hole.id === 'json_keep' || !vis(hole.x, hole.y)) continue;
+    drawTrollHole(ctx, hole.x, hole.y, time);
   }
 
   // Cubes: transparent, colourful, under the lines for depth.
@@ -584,6 +599,11 @@ export function drawScene(scene: RenderScene): void {
   // carrying. Skipped on the pulled-out map, where a token is sub-pixel.
   if (scene.coins && mapness < 0.6) {
     drawCoins(ctx, scene.coins, scene.critters, player, time, z, vis);
+  }
+
+  // The oxygen helmets, waiting to be found. Sub-pixel on the far map.
+  if (scene.helmetState && mapness < 0.6) {
+    drawHelmets(ctx, scene.helmetState, time, vis);
   }
 
   // Stake fog.
@@ -776,6 +796,9 @@ export function drawScene(scene: RenderScene): void {
   }
 
   drawBug(ctx, player, time);
+  if (scene.helmetState) {
+    drawSuitBubble(ctx, player.x, player.y, scene.helmetState.count, time);
+  }
 
   // Warp effect: expanding rings at the bug.
   if (scene.warpFx && scene.warpFx > 0) {
@@ -869,6 +892,8 @@ function drawHud(scene: RenderScene): void {
   ctx.fillText(`${hud.windowLabel} ${hud.windowTime}`, 16, 33);
   ctx.fillStyle = '#ffd24a';
   ctx.fillText(`${hud.tokensLabel} ${hud.carried} / ${hud.banked}`, 16, 52);
+  ctx.fillStyle = '#9be8ff';
+  ctx.fillText(`${hud.helmetsLabel} ${hud.helmets} / ${hud.helmetTotal}`, 16, 71);
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
 }
@@ -878,8 +903,8 @@ function drawHud(scene: RenderScene): void {
  * eyes, the cyan surfboard, and the drift countdown ring.
  */
 function drawBug(ctx: CanvasRenderingContext2D, p: PlayerState, time: number): void {
-  const BW = 15;
-  const BH = 17;
+  const BW = 19;
+  const BH = 21;
   ctx.save();
   ctx.translate(p.x, p.y);
 
@@ -889,12 +914,12 @@ function drawBug(ctx: CanvasRenderingContext2D, p: PlayerState, time: number): v
   ctx.strokeStyle = PALETTE.boardLit;
   ctx.lineWidth = 1.4;
   ctx.beginPath();
-  ctx.ellipse(0, BH + 4, 22, 6.5, 0, 0, 6.283);
+  ctx.ellipse(0, BH + 4, 27, 7.5, 0, 0, 6.283);
   ctx.fill();
   ctx.stroke();
   ctx.beginPath();
-  ctx.moveTo(-20, BH + 4);
-  ctx.lineTo(20, BH + 4);
+  ctx.moveTo(-24, BH + 4);
+  ctx.lineTo(24, BH + 4);
   ctx.globalAlpha = 0.5;
   ctx.stroke();
   ctx.globalAlpha = 1;
@@ -938,7 +963,7 @@ function drawBug(ctx: CanvasRenderingContext2D, p: PlayerState, time: number): v
   // reads at play zoom. Drawn OUTSIDE any facing flip: the body faces
   // left/right via `face` coordinate offsets only, never a flip transform,
   // so the mark can never appear backwards.
-  drawBugMark(ctx, 0, 0.5, 24);
+  drawBugMark(ctx, 0, 0.5, 29);
 
   if (p.mode === 'drift') {
     const f = clamp(p.fuel / 2.4, 0, 1);
@@ -946,7 +971,7 @@ function drawBug(ctx: CanvasRenderingContext2D, p: PlayerState, time: number): v
     ctx.lineWidth = 2.5;
     ctx.globalAlpha = 0.5 + Math.sin(time * 18) * 0.3;
     ctx.beginPath();
-    ctx.arc(0, 0, 31, -1.57, -1.57 + 6.283 * f);
+    ctx.arc(0, 0, 37, -1.57, -1.57 + 6.283 * f);
     ctx.stroke();
     ctx.globalAlpha = 1;
   }

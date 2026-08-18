@@ -797,12 +797,14 @@
       "write_post": "投稿を書く",
       "wallet": "ウォレット",
       "arcade": "アーケード",
-      "healthchecker": "Healthchecker"
+      "healthchecker": "Healthchecker",
+      "json_keep": "The Mighty J SON"
     },
     "hud": {
       "houses": "家",
       "window": "ウィンドウ",
-      "tokens": "トークン"
+      "tokens": "トークン",
+      "helmets": "ヘルメット"
     },
     "map": {
       "hint": "ランドマークをタップして移動",

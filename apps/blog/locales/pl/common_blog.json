@@ -802,12 +802,14 @@
       "write_post": "Napisz post",
       "wallet": "Portfel",
       "arcade": "Salon gier",
-      "healthchecker": "Healthchecker"
+      "healthchecker": "Healthchecker",
+      "json_keep": "The Mighty J SON"
     },
     "hud": {
       "houses": "DOMY",
       "window": "OKNO",
-      "tokens": "ŻETONY"
+      "tokens": "ŻETONY",
+      "helmets": "HEŁMY"
     },
     "map": {
       "hint": "Dotknij miejsca, aby tam podróżować",

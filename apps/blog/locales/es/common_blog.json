@@ -797,12 +797,14 @@
       "write_post": "Escribir una publicación",
       "wallet": "Cartera",
       "arcade": "Arcade",
-      "healthchecker": "Healthchecker"
+      "healthchecker": "Healthchecker",
+      "json_keep": "The Mighty J SON"
     },
     "hud": {
       "houses": "CASAS",
       "window": "VENTANA",
-      "tokens": "FICHAS"
+      "tokens": "FICHAS",
+      "helmets": "CASCOS"
     },
     "map": {
       "hint": "Toca un lugar para viajar allí",

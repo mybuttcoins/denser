@@ -797,12 +797,14 @@
       "write_post": "Scrivi un post",
       "wallet": "Portafoglio",
       "arcade": "Arcade",
-      "healthchecker": "Healthchecker"
+      "healthchecker": "Healthchecker",
+      "json_keep": "The Mighty J SON"
     },
     "hud": {
       "houses": "CASE",
       "window": "FINESTRA",
-      "tokens": "GETTONI"
+      "tokens": "GETTONI",
+      "helmets": "CASCHI"
     },
     "map": {
       "hint": "Tocca un luogo per viaggiarci",

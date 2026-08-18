@@ -803,12 +803,14 @@
       "write_post": "Написать пост",
       "wallet": "Кошелёк",
       "arcade": "Аркада",
-      "healthchecker": "Healthchecker"
+      "healthchecker": "Healthchecker",
+      "json_keep": "The Mighty J SON"
     },
     "hud": {
       "houses": "ДОМА",
       "window": "ОКНО",
-      "tokens": "ТОКЕНЫ"
+      "tokens": "ТОКЕНЫ",
+      "helmets": "ШЛЕМЫ"
     },
     "map": {
       "hint": "Нажмите на место, чтобы отправиться туда",

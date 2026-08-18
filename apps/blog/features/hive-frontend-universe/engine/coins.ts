@@ -14,10 +14,15 @@
  *            travel rather than as a detour.
  *   BANK     carry them to a json factory and they are counted in. Carried
  *            tokens are at risk; banked tokens are safe forever.
- *   AVOID    extractors reach out a long trunk and suck carried tokens
- *            straight back off you. Being airborne saves you: a trunk cannot
- *            catch a bug mid drift, so JUMP OVER an extractor rather than
- *            riding past it.
+ *   AVOID    two thieves work for the Mighty J SON. EXTRACTORS latch on with
+ *            sucker snouts and drain carried tokens off you; SCAMMERS sidle
+ *            close and snatch a fistful at once. Being airborne saves you
+ *            from both: nothing catches a bug mid drift, so JUMP OVER a
+ *            thief rather than riding past it.
+ *   CHASE    a thief with loot stops wandering and RUNS for the nearest of
+ *            the Mighty J SON's troll holes. Catch it before it gets there
+ *            and every stolen token comes back to you; let it reach the hole
+ *            and they are fed to J SON, gone for good.
  *
  * Nothing here touches movement.ts. The player's state is read, never written:
  * the drift check is simply `mode === 'drift'`, which the existing jump already
@@ -62,6 +67,23 @@ export interface CoinState {
   /** How many tokens this window minted, and the real number behind it. */
   minted: number;
   sourceOps: number;
+  /* ---- the heist ledger ---- */
+  /** Tokens in thieves' hands right now, per critter index. */
+  lootByCritter: number[];
+  /** Per-critter cooldown: seconds before this thief can steal again. */
+  thiefCooldown: number[];
+  /**
+   * Per-critter pounce grace: for a beat after a snatch the thief cannot be
+   * pounced. Without it the recapture landed in the very same frame as the
+   * snatch, because the thief had not moved yet, and stealing never worked.
+   */
+  graceByCritter: number[];
+  /** Tokens delivered down a troll hole. Fed to J SON, gone. */
+  fed: number;
+  /** Tokens taken BACK from thieves by catching them mid-run. */
+  recovered: number;
+  /** Seconds of recapture flash remaining, for the renderer. */
+  recaptureFlash: number;
 }
 
 /** One token per this many custom_json ops in the window. */
@@ -83,6 +105,19 @@ const BANK_RANGE = 190;
 const TRUNK_REACH = 360;
 /** Tokens sucked away per second while a trunk has hold of you. */
 const DRAIN_PER_SEC = 2.4;
+/** How close a scammer must sidle to snatch, world px. */
+const SNATCH_RANGE = 150;
+/** Tokens a scammer grabs in one snatch. */
+const SNATCH_GRAB = 3;
+/** Seconds a thief sulks after snatching, being caught, or delivering. */
+const THIEF_COOLDOWN = 7;
+/** World px per second a loaded thief runs at. Slower than the bug, so a
+ *  determined chase wins; faster than idling, so ignoring one loses tokens. */
+const HAUL_SPEED = 190;
+/** How close to a troll hole counts as delivered. */
+const DELIVER_RANGE = 150;
+/** How close the bug must get to a running thief to take everything back. */
+const POUNCE_RANGE = 85;
 
 export function createCoins(world: GameWorld, customJsonOps: number, seed: number): CoinState {
   const rng = mulberry32((seed ^ 0x7c01) | 0);
@@ -112,8 +147,20 @@ export function createCoins(world: GameWorld, customJsonOps: number, seed: numbe
     drainDebt: 0,
     bankFlash: 0,
     minted: coins.length,
-    sourceOps: customJsonOps
+    sourceOps: customJsonOps,
+    lootByCritter: [],
+    thiefCooldown: [],
+    graceByCritter: [],
+    fed: 0,
+    recovered: 0,
+    recaptureFlash: 0
   };
+}
+
+/** Somewhere a thief can dump its loot: the Mighty J SON's troll holes. */
+export interface Lair {
+  x: number;
+  y: number;
 }
 
 export function updateCoins(
@@ -121,10 +168,19 @@ export function updateCoins(
   player: PlayerState,
   critters: CritterState | null,
   factories: Factory[],
+  lairs: readonly Lair[],
   dt: number
 ): void {
   if (state.drained > 0) state.drained = Math.max(0, state.drained - dt);
   if (state.bankFlash > 0) state.bankFlash = Math.max(0, state.bankFlash - dt);
+  if (state.recaptureFlash > 0) state.recaptureFlash = Math.max(0, state.recaptureFlash - dt);
+
+  // Size the heist ledger to the population on first sight of it.
+  if (critters && state.lootByCritter.length !== critters.critters.length) {
+    state.lootByCritter = new Array(critters.critters.length).fill(0);
+    state.thiefCooldown = new Array(critters.critters.length).fill(0);
+    state.graceByCritter = new Array(critters.critters.length).fill(0);
+  }
 
   // COLLECT.
   const pickup2 = PICKUP * PICKUP;
@@ -154,34 +210,132 @@ export function updateCoins(
     }
   }
 
-  // EXTRACTORS. A trunk cannot catch a bug in the air, so drifting is the
-  // counterplay: jump over them rather than riding past.
+  // THE THIEVES. Nothing catches a bug in the air, so drifting is the
+  // counterplay for both kinds: jump over them rather than riding past.
+  // Who was latched on LAST frame, captured before the reset: the sticky
+  // drainer rule needs it, and reading it after the reset made it always -1.
+  const prevDrainer = state.drainingBy;
   state.drainingBy = -1;
-  if (state.carried > 0 && critters && player.mode !== 'drift') {
-    const reach2 = TRUNK_REACH * TRUNK_REACH;
-    let nearest = -1;
-    let nearestD2 = reach2;
+  if (critters) {
     for (let i = 0; i < critters.critters.length; i++) {
-      const cr = critters.critters[i];
-      if (cr.kind !== 'extractor') continue;
-      const dx = cr.x - player.x;
-      const dy = cr.y - player.y;
-      const d2 = dx * dx + dy * dy;
-      if (d2 < nearestD2) {
-        nearestD2 = d2;
-        nearest = i;
-      }
+      if (state.thiefCooldown[i] > 0) state.thiefCooldown[i] -= dt;
+      if (state.graceByCritter[i] > 0) state.graceByCritter[i] -= dt;
     }
-    if (nearest >= 0) {
-      state.drainingBy = nearest;
-      state.drainDebt += DRAIN_PER_SEC * dt;
-      while (state.drainDebt >= 1 && state.carried > 0) {
-        state.drainDebt -= 1;
-        state.carried--;
-        state.drained = 0.55;
+
+    const airborne = player.mode === 'drift';
+
+    // EXTRACTOR: latches on and drains, token by token, into its own pouch.
+    if (state.carried > 0 && !airborne) {
+      const reach2 = TRUNK_REACH * TRUNK_REACH;
+      let nearest = -1;
+      let nearestD2 = reach2;
+      for (let i = 0; i < critters.critters.length; i++) {
+        const cr = critters.critters[i];
+        if (cr.kind !== 'extractor') continue;
+        if (state.thiefCooldown[i] > 0) continue;
+        if (state.lootByCritter[i] > 0 && prevDrainer !== i) continue;
+        const dx = cr.x - player.x;
+        const dy = cr.y - player.y;
+        const d2 = dx * dx + dy * dy;
+        if (d2 < nearestD2) {
+          nearestD2 = d2;
+          nearest = i;
+        }
+      }
+      if (nearest >= 0) {
+        state.drainingBy = nearest;
+        state.drainDebt += DRAIN_PER_SEC * dt;
+        while (state.drainDebt >= 1 && state.carried > 0) {
+          state.drainDebt -= 1;
+          state.carried--;
+          state.lootByCritter[nearest]++;
+          state.drained = 0.55;
+        }
+        state.graceByCritter[nearest] = 0.4;
+        // A full pouch, or an emptied bug, sends it running for a hole.
+        if (state.lootByCritter[nearest] >= 4 || state.carried === 0) {
+          state.thiefCooldown[nearest] = THIEF_COOLDOWN;
+          state.graceByCritter[nearest] = 0;
+        }
+      } else {
+        state.drainDebt = 0;
       }
     } else {
       state.drainDebt = 0;
+    }
+
+    // SCAMMER: one quick sidle-and-snatch, then it bolts.
+    if (state.carried > 0 && !airborne) {
+      const snatch2 = SNATCH_RANGE * SNATCH_RANGE;
+      for (let i = 0; i < critters.critters.length; i++) {
+        const cr = critters.critters[i];
+        if (cr.kind !== 'scammer') continue;
+        if (state.lootByCritter[i] > 0 || state.thiefCooldown[i] > 0) continue;
+        const dx = cr.x - player.x;
+        const dy = cr.y - player.y;
+        if (dx * dx + dy * dy > snatch2) continue;
+        const grab = Math.min(SNATCH_GRAB, state.carried);
+        state.carried -= grab;
+        state.lootByCritter[i] += grab;
+        state.drained = 0.55;
+        state.thiefCooldown[i] = THIEF_COOLDOWN;
+        state.graceByCritter[i] = 0.7;
+        // The getaway dash: it bolts a body length away in the same beat,
+        // cackling, before the run to the hole begins.
+        const d = Math.hypot(dx, dy) || 1;
+        cr.x += (dx / d) * 260;
+        cr.y += (dy / d) * 260;
+        break; // one snatch per frame is plenty of cruelty
+      }
+    }
+
+    // LOADED THIEVES RUN. A thief with loot abandons its wander and beelines
+    // for the nearest troll hole, overriding the ambient drift position the
+    // population update gave it this frame. Catch it to take everything back.
+    const pounce2 = POUNCE_RANGE * POUNCE_RANGE;
+    for (let i = 0; i < critters.critters.length; i++) {
+      const loot = state.lootByCritter[i];
+      if (loot <= 0) continue;
+      if (i === state.drainingBy) continue; // still latched on, not running yet
+      const cr = critters.critters[i];
+
+      // The pounce: any contact takes the whole pouch back, once the getaway
+      // beat has passed.
+      if (state.graceByCritter[i] <= 0) {
+        const dx = cr.x - player.x;
+        const dy = cr.y - player.y;
+        if (dx * dx + dy * dy <= pounce2) {
+          state.carried += loot;
+          state.recovered += loot;
+          state.lootByCritter[i] = 0;
+          state.recaptureFlash = 1.0;
+          state.thiefCooldown[i] = THIEF_COOLDOWN;
+          continue;
+        }
+      }
+
+      // The run.
+      let lair = null;
+      let bestD = Infinity;
+      for (const l of lairs) {
+        const d = Math.hypot(l.x - cr.x, l.y - cr.y);
+        if (d < bestD) {
+          bestD = d;
+          lair = l;
+        }
+      }
+      if (!lair) continue;
+      if (bestD <= DELIVER_RANGE) {
+        // Down the hole: fed to the Mighty J SON.
+        state.fed += loot;
+        state.lootByCritter[i] = 0;
+        state.thiefCooldown[i] = THIEF_COOLDOWN;
+        continue;
+      }
+      const step = Math.min(HAUL_SPEED * dt, bestD);
+      cr.x += ((lair.x - cr.x) / bestD) * step;
+      cr.y += ((lair.y - cr.y) / bestD) * step;
+      cr.face = lair.x > cr.x ? 1 : -1;
     }
   } else {
     state.drainDebt = 0;
@@ -297,6 +451,44 @@ export function drawCoins(
       ctx.stroke();
       ctx.globalAlpha = 1;
     }
+  }
+
+  // Loot riding on the thieves: stolen tokens bob above whoever holds them,
+  // so a loaded thief is readable at a glance and worth chasing.
+  if (critters) {
+    for (let i = 0; i < state.lootByCritter.length; i++) {
+      const loot = state.lootByCritter[i];
+      if (loot <= 0) continue;
+      const cr = critters.critters[i];
+      if (!cr || !vis(cr.x, cr.y)) continue;
+      const show = Math.min(loot, 4);
+      for (let k = 0; k < show; k++) {
+        const a = time * 2.2 + (k / show) * 6.283;
+        drawToken(ctx, cr.x + Math.cos(a) * 30, cr.y - 44 + Math.sin(a) * 10, r * 0.5, time * 4 + k);
+      }
+      // A dust trail behind the runner, so the flight reads as flight.
+      ctx.globalAlpha = 0.4;
+      ctx.fillStyle = '#e8d9ff';
+      for (let k = 1; k <= 3; k++) {
+        ctx.beginPath();
+        ctx.arc(cr.x - cr.face * k * 16, cr.y + 12, 4.5 - k, 0, 6.283);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  // Recapture: a burst of gold when the pounce lands.
+  if (state.recaptureFlash > 0) {
+    ctx.globalAlpha = state.recaptureFlash;
+    ctx.strokeStyle = '#ffd24a';
+    ctx.lineWidth = 6 / Math.max(z, 0.3);
+    for (const mul of [1, 1.7]) {
+      ctx.beginPath();
+      ctx.arc(player.x, player.y, (30 + (1 - state.recaptureFlash) * 160) * mul, 0, 6.283);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
   }
 
   // Banking confirmation ring.

@@ -200,6 +200,9 @@ export function drawIcon(
     case 'blackhole':
       drawBlackHole(ctx, x, y, s * 1.5, time);
       break;
+    case 'jsonboss':
+      drawJsonBoss(ctx, x, y, s * 1.5, time);
+      break;
     case 'spaceship': {
       // Small rocket in flight.
       ctx.beginPath();
@@ -1373,6 +1376,180 @@ export function drawWitnessCitadel(
   ctx.stroke();
   }
 
+  ctx.restore();
+}
+
+/* ----------------------- the Mighty J SON ----------------------- */
+
+/**
+ * A TROLL HOLE: one mouth of the Mighty J SON's network, sunk into the
+ * terrain. A dark pit ringed with cracked ground, breathing a sickly violet
+ * glow, with two curly-brace fangs at the rim: the mark of J SON.
+ */
+export function drawTrollHole(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  time: number
+): void {
+  const R = 120;
+  ctx.save();
+  ctx.translate(x, y);
+  // Cracked ground ring.
+  ctx.strokeStyle = STICKER_OUTLINE;
+  ctx.lineWidth = 7;
+  ctx.lineJoin = 'round';
+  ctx.fillStyle = '#1b0f26';
+  ctx.beginPath();
+  for (let k = 0; k <= 12; k++) {
+    const a = (k / 12) * 6.283;
+    const rr = R * (1 + 0.12 * Math.sin(a * 3 + 1.3));
+    const px = Math.cos(a) * rr;
+    const py = Math.sin(a) * rr * 0.62;
+    if (k === 0) ctx.moveTo(px, py);
+    else ctx.lineTo(px, py);
+  }
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  // The breathing violet glow inside.
+  const breath = 0.5 + Math.sin(time * 1.1 + x * 0.001) * 0.5;
+  const g = ctx.createRadialGradient(0, 0, 6, 0, 0, R * 0.8);
+  g.addColorStop(0, 'rgba(190, 120, 255, ' + (0.35 + breath * 0.35).toFixed(3) + ')');
+  g.addColorStop(1, 'rgba(90, 40, 140, 0)');
+  ctx.fillStyle = g;
+  ctx.beginPath();
+  ctx.ellipse(0, 0, R * 0.8, R * 0.5, 0, 0, 6.283);
+  ctx.fill();
+  // The brace fangs: { } carved at the rim.
+  ctx.strokeStyle = '#c98bff';
+  ctx.lineWidth = 8;
+  ctx.lineCap = 'round';
+  for (const side of [-1, 1]) {
+    ctx.beginPath();
+    ctx.moveTo(side * R * 0.52, -R * 0.34);
+    ctx.quadraticCurveTo(side * R * 0.28, -R * 0.3, side * R * 0.3, -R * 0.1);
+    ctx.quadraticCurveTo(side * R * 0.32, R * 0.02, side * R * 0.16, R * 0.05);
+    ctx.quadraticCurveTo(side * R * 0.32, R * 0.08, side * R * 0.3, R * 0.2);
+    ctx.quadraticCurveTo(side * R * 0.28, R * 0.42, side * R * 0.52, R * 0.46);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+/**
+ * THE MIGHTY J SON: the villain himself, a hulking monster whose body IS a
+ * pair of curly braces, crouched on his keep hoarding a mountain of stolen
+ * tokens. Overlord of the sock puppets, bots, scammers, spammers and
+ * extractors. Big, bold, and just a little ridiculous, as a good boss is.
+ */
+function drawJsonBoss(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  R: number,
+  time: number
+): void {
+  const lw = Math.max(4, R * 0.05);
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
+
+  // The keep: a jagged dark crag he squats on.
+  ctx.fillStyle = '#241333';
+  ctx.strokeStyle = STICKER_OUTLINE;
+  ctx.lineWidth = lw;
+  ctx.beginPath();
+  ctx.moveTo(-R * 1.2, R * 1.15);
+  ctx.lineTo(-R * 0.9, R * 0.55);
+  ctx.lineTo(-R * 0.55, R * 0.8);
+  ctx.lineTo(-R * 0.2, R * 0.42);
+  ctx.lineTo(R * 0.25, R * 0.75);
+  ctx.lineTo(R * 0.7, R * 0.5);
+  ctx.lineTo(R * 1.2, R * 1.15);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  // The hoard: a heap of gold tokens spilling down the crag.
+  for (let k = 0; k < 9; k++) {
+    const hx = Math.sin(k * 2.7) * R * 0.55;
+    const hy = R * (0.62 + (k % 3) * 0.12);
+    ctx.beginPath();
+    ctx.ellipse(hx, hy, R * 0.1, R * 0.055, 0, 0, 6.283);
+    ctx.fillStyle = k % 2 ? '#ffd24a' : '#f0b429';
+    ctx.fill();
+    ctx.strokeStyle = STICKER_OUTLINE;
+    ctx.lineWidth = lw * 0.5;
+    ctx.stroke();
+  }
+
+  // The body: two huge brace-shaped arms around a dark core, breathing.
+  const breath = 1 + Math.sin(time * 1.3) * 0.03;
+  ctx.save();
+  ctx.scale(breath, breath);
+  // Core.
+  ctx.beginPath();
+  ctx.ellipse(0, -R * 0.15, R * 0.52, R * 0.62, 0, 0, 6.283);
+  ctx.fillStyle = '#3c1f57';
+  ctx.fill();
+  ctx.strokeStyle = STICKER_OUTLINE;
+  ctx.lineWidth = lw;
+  ctx.stroke();
+  // The braces, huge and violet, his true form.
+  ctx.strokeStyle = '#c98bff';
+  ctx.lineWidth = lw * 2.4;
+  for (const side of [-1, 1]) {
+    ctx.beginPath();
+    ctx.moveTo(side * R * 0.85, -R * 0.75);
+    ctx.quadraticCurveTo(side * R * 0.45, -R * 0.7, side * R * 0.5, -R * 0.35);
+    ctx.quadraticCurveTo(side * R * 0.55, -R * 0.12, side * R * 0.25, -R * 0.08);
+    ctx.quadraticCurveTo(side * R * 0.55, -R * 0.04, side * R * 0.5, R * 0.2);
+    ctx.quadraticCurveTo(side * R * 0.45, R * 0.55, side * R * 0.85, R * 0.6);
+    ctx.stroke();
+  }
+  // Outline pass over the braces so they read as flesh, not neon.
+  ctx.strokeStyle = STICKER_OUTLINE;
+  ctx.lineWidth = lw * 0.7;
+  for (const side of [-1, 1]) {
+    ctx.beginPath();
+    ctx.moveTo(side * R * 0.85, -R * 0.75);
+    ctx.quadraticCurveTo(side * R * 0.45, -R * 0.7, side * R * 0.5, -R * 0.35);
+    ctx.quadraticCurveTo(side * R * 0.55, -R * 0.12, side * R * 0.25, -R * 0.08);
+    ctx.quadraticCurveTo(side * R * 0.55, -R * 0.04, side * R * 0.5, R * 0.2);
+    ctx.quadraticCurveTo(side * R * 0.45, R * 0.55, side * R * 0.85, R * 0.6);
+    ctx.stroke();
+  }
+  // Eyes: two burning slits that sweep the world, then the colon-and-quote
+  // face marks of a creature literally made of JSON.
+  const glare = 0.6 + Math.sin(time * 2.1) * 0.4;
+  ctx.fillStyle = 'rgba(255, 210, 74, ' + glare.toFixed(3) + ')';
+  for (const side of [-1, 1]) {
+    ctx.beginPath();
+    ctx.ellipse(side * R * 0.18, -R * 0.38, R * 0.11, R * 0.05, side * 0.25, 0, 6.283);
+    ctx.fill();
+  }
+  ctx.fillStyle = '#ffd24a';
+  ctx.beginPath();
+  ctx.arc(0, -R * 0.16, R * 0.035, 0, 6.283);
+  ctx.arc(0, -R * 0.02, R * 0.035, 0, 6.283);
+  ctx.fill();
+  ctx.restore();
+
+  // A slow orbit of captive tokens circling his head.
+  for (let k = 0; k < 5; k++) {
+    const a = time * 0.7 + (k / 5) * 6.283;
+    const ox = Math.cos(a) * R * 0.95;
+    const oy = -R * 0.75 + Math.sin(a) * R * 0.18;
+    ctx.beginPath();
+    ctx.ellipse(ox, oy, R * 0.06, R * 0.075, 0, 0, 6.283);
+    ctx.fillStyle = '#ffd24a';
+    ctx.fill();
+    ctx.strokeStyle = STICKER_OUTLINE;
+    ctx.lineWidth = lw * 0.5;
+    ctx.stroke();
+  }
   ctx.restore();
 }
 

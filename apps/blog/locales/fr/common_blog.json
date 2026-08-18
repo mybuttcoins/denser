@@ -797,12 +797,14 @@
       "write_post": "Écrire un article",
       "wallet": "Portefeuille",
       "arcade": "Arcade",
-      "healthchecker": "Healthchecker"
+      "healthchecker": "Healthchecker",
+      "json_keep": "The Mighty J SON"
     },
     "hud": {
       "houses": "MAISONS",
       "window": "FENÊTRE",
-      "tokens": "JETONS"
+      "tokens": "JETONS",
+      "helmets": "CASQUES"
     },
     "map": {
       "hint": "Touchez un lieu pour vous y rendre",

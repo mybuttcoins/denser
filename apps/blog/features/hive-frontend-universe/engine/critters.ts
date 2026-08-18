@@ -320,121 +320,179 @@ function drawBlah(ctx: CanvasRenderingContext2D, x: number, y: number, face: num
   ctx.restore();
 }
 
-/** Scammer: a too-good-to-be-true gem that glints, with shifty eyes. */
+/**
+ * Scammer: a bandit HEAD in a black Zorro mask under a flat gaucho hat, with
+ * a golden face (still too shiny to trust) and shifty eyes in the mask slits.
+ * The glint stays: it is what makes the deal look too good.
+ */
 function drawScammer(ctx: CanvasRenderingContext2D, x: number, y: number, face: number, time: number): void {
   ctx.save();
   ctx.translate(x, y);
-  ctx.rotate(face * 0.08);
-  sticker(ctx, 3.5);
-  // Gem body.
+  ctx.rotate(face * 0.06);
+  sticker(ctx, 4);
+  // Golden head.
   ctx.beginPath();
-  ctx.moveTo(-15, -4);
-  ctx.lineTo(-7, -13);
-  ctx.lineTo(7, -13);
-  ctx.lineTo(15, -4);
-  ctx.lineTo(0, 15);
-  ctx.closePath();
+  ctx.arc(0, 0, 16, 0, 6.283);
   ctx.fillStyle = '#ffd84a';
   ctx.fill();
   ctx.stroke();
-  // Facets.
-  ctx.lineWidth = 2;
+  // Sly grin below the mask.
+  ctx.lineWidth = 2.6;
   ctx.beginPath();
-  ctx.moveTo(-15, -4);
-  ctx.lineTo(15, -4);
-  ctx.moveTo(-7, -13);
-  ctx.lineTo(-4, -4);
-  ctx.lineTo(0, 15);
-  ctx.moveTo(7, -13);
-  ctx.lineTo(4, -4);
-  ctx.lineTo(0, 15);
+  ctx.moveTo(face * 2 - 6, 9);
+  ctx.quadraticCurveTo(face * 2 + 1, 13, face * 2 + 8, 8);
   ctx.stroke();
-  // Shifty eyes on the big facet: both pupils darting to one side.
+  // The MASK: a black domino band right across the eyes, tied at the back
+  // with two little tails that flick as it moves.
+  ctx.fillStyle = '#17131c';
+  ctx.beginPath();
+  ctx.moveTo(-17, -9);
+  ctx.quadraticCurveTo(0, -14, 17, -9);
+  ctx.quadraticCurveTo(18, -1, 15, 1);
+  ctx.quadraticCurveTo(0, -3, -15, 1);
+  ctx.quadraticCurveTo(-18, -1, -17, -9);
+  ctx.closePath();
+  ctx.fill();
+  const flick = Math.sin(time * 5) * 3;
+  ctx.strokeStyle = '#17131c';
+  ctx.lineWidth = 3.4;
+  ctx.beginPath();
+  ctx.moveTo(-face * 15, -5);
+  ctx.quadraticCurveTo(-face * 24, -8 + flick, -face * 28, -2 + flick);
+  ctx.moveTo(-face * 15, -4);
+  ctx.quadraticCurveTo(-face * 23, 0 - flick, -face * 27, 6 - flick);
+  ctx.stroke();
+  // Shifty eyes IN the mask slits.
   const dart = Math.sin(time * 0.9) > 0 ? 1 : -1;
-  for (const ex of [-5.5, 5.5]) {
+  for (const ex of [-7, 7]) {
     ctx.beginPath();
-    ctx.ellipse(ex, -8.4, 3.4, 2.6, 0, 0, 6.283);
+    ctx.ellipse(ex + face, -5.5, 3.6, 2.6, 0, 0, 6.283);
     ctx.fillStyle = '#ffffff';
     ctx.fill();
-    ctx.lineWidth = 2.2;
-    ctx.stroke();
     ctx.fillStyle = OUTLINE;
     ctx.beginPath();
-    ctx.arc(ex + dart * 1.8, -8.2, 1.4, 0, 6.283);
+    ctx.arc(ex + face + dart * 1.8, -5.4, 1.5, 0, 6.283);
     ctx.fill();
   }
+  // The flat black gaucho hat.
+  sticker(ctx, 3.4);
+  ctx.fillStyle = '#17131c';
+  ctx.beginPath();
+  ctx.ellipse(0, -14, 21, 4.4, face * 0.06, 0, 6.283);
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillRect(-9, -24, 18, 10);
+  ctx.strokeRect(-9, -24, 18, 10);
+  // Hat band, bold red.
+  ctx.fillStyle = '#e3123a';
+  ctx.fillRect(-9, -17.5, 18, 3.6);
   // The glint: a rotating four-point sparkle. Too shiny. Suspicious.
   const g = (time * 1.3) % 6.283;
   ctx.save();
-  ctx.translate(10, -10);
+  ctx.translate(13, -18);
   ctx.rotate(g);
   ctx.fillStyle = '#ffffff';
   ctx.beginPath();
   for (let i = 0; i < 4; i++) {
     ctx.rotate(Math.PI / 2);
     ctx.moveTo(0, 0);
-    ctx.quadraticCurveTo(1.6, -1.6, 0, -6.5);
-    ctx.quadraticCurveTo(-1.6, -1.6, 0, 0);
+    ctx.quadraticCurveTo(1.8, -1.8, 0, -7);
+    ctx.quadraticCurveTo(-1.8, -1.8, 0, 0);
   }
   ctx.fill();
   ctx.restore();
   ctx.restore();
 }
 
-/** Extractor: a fat tick with a straw, drawn mid-suck. */
+/**
+ * Extractor: a BIG fat tick with FOUR sucker snouts fanned out ahead of it,
+ * each ending in a sucker cup, each with a droplet travelling the wrong way.
+ * Half again the size of the other critters: this is the one to watch for.
+ */
 function drawExtractor(ctx: CanvasRenderingContext2D, x: number, y: number, face: number, time: number): void {
   ctx.save();
   ctx.translate(x, y);
-  sticker(ctx, 3.5);
+  ctx.scale(1.55, 1.55);
+  sticker(ctx, 3.2);
   const gulp = 1 + Math.sin(time * 5) * 0.06;
-  // The straw, angled down toward the line it siphons.
-  ctx.lineWidth = 5.5;
-  ctx.strokeStyle = OUTLINE;
-  ctx.beginPath();
-  ctx.moveTo(face * 10, 4);
-  ctx.lineTo(face * 26, 16);
-  ctx.stroke();
-  ctx.lineWidth = 2.6;
-  ctx.strokeStyle = '#8de6ff';
-  ctx.beginPath();
-  ctx.moveTo(face * 10, 4);
-  ctx.lineTo(face * 26, 16);
-  ctx.stroke();
-  // A droplet travelling UP the straw.
-  const dropT = 1 - ((time * 1.4) % 1);
-  ctx.fillStyle = '#8de6ff';
-  ctx.beginPath();
-  ctx.arc(face * (10 + 16 * dropT), 4 + 12 * dropT, 2.6, 0, 6.283);
-  ctx.fill();
-  // Body: bulbous abdomen plus small head, pulsing with the gulp.
+  // FOUR snouts, fanned. Each is a dark tube with a bright inner line, a
+  // sucker cup at the tip, and a droplet riding up it.
+  const snouts = [
+    { dx: 26, dy: -8 },
+    { dx: 30, dy: 2 },
+    { dx: 29, dy: 11 },
+    { dx: 24, dy: 19 }
+  ];
+  for (let i = 0; i < snouts.length; i++) {
+    const sn = snouts[i];
+    const wig = Math.sin(time * 3.2 + i * 1.7) * 2.2;
+    const tx = face * sn.dx;
+    const ty = sn.dy + wig;
+    ctx.lineWidth = 4.6;
+    ctx.strokeStyle = OUTLINE;
+    ctx.beginPath();
+    ctx.moveTo(face * 8, 2 + i * 1.5);
+    ctx.quadraticCurveTo(face * (8 + sn.dx) * 0.55, (2 + sn.dy) * 0.5 - 4, tx, ty);
+    ctx.stroke();
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = '#8de6ff';
+    ctx.beginPath();
+    ctx.moveTo(face * 8, 2 + i * 1.5);
+    ctx.quadraticCurveTo(face * (8 + sn.dx) * 0.55, (2 + sn.dy) * 0.5 - 4, tx, ty);
+    ctx.stroke();
+    // Sucker cup.
+    ctx.beginPath();
+    ctx.arc(tx, ty, 3.4, 0, 6.283);
+    ctx.fillStyle = '#ff8bd0';
+    ctx.fill();
+    ctx.strokeStyle = OUTLINE;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    // Droplet travelling UP this snout.
+    const dropT = 1 - ((time * 1.4 + i * 0.25) % 1);
+    ctx.fillStyle = '#8de6ff';
+    ctx.beginPath();
+    ctx.arc(face * 8 + (tx - face * 8) * dropT, 2 + i * 1.5 + (ty - 2 - i * 1.5) * dropT, 2.2, 0, 6.283);
+    ctx.fill();
+  }
+  // Body: bulbous abdomen plus head, pulsing with the gulp.
   ctx.save();
   ctx.scale(1, gulp);
-  sticker(ctx, 3.5);
+  sticker(ctx, 3.2);
   ctx.beginPath();
-  ctx.ellipse(-face * 4, 0, 14, 11, 0, 0, 6.283);
+  ctx.ellipse(-face * 5, 0, 16, 12.5, 0, 0, 6.283);
   ctx.fillStyle = '#c05df0';
   ctx.fill();
   ctx.stroke();
+  // Abdomen spots, because a villain this size earns detail.
+  ctx.fillStyle = '#8f2fc4';
+  for (const [sx2, sy2, sr] of [[-13, -3, 3.2], [-6, 5, 2.6], [-9, -6, 2.2]] as const) {
+    ctx.beginPath();
+    ctx.arc(-face * 5 + face * sx2 * -0.4 + sx2 * 0.6, sy2, sr, 0, 6.283);
+    ctx.fill();
+  }
   ctx.beginPath();
-  ctx.arc(face * 9, 1, 6.5, 0, 6.283);
+  ctx.arc(face * 9, 1, 7.5, 0, 6.283);
   ctx.fillStyle = '#d98cff';
   ctx.fill();
+  ctx.strokeStyle = OUTLINE;
   ctx.stroke();
   ctx.restore();
-  // Little legs.
+  // Little legs, comically small for the body.
   ctx.lineWidth = 2.6;
   ctx.strokeStyle = OUTLINE;
   for (let i = -1; i <= 1; i++) {
     ctx.beginPath();
-    ctx.moveTo(-face * 4 + i * 6, 9);
-    ctx.lineTo(-face * 4 + i * 6 - 3, 15);
+    ctx.moveTo(-face * 5 + i * 7, 11);
+    ctx.lineTo(-face * 5 + i * 7 - 3, 17);
     ctx.stroke();
   }
-  // One squinting eye: it is concentrating.
+  // Two hungry eyes: it is concentrating.
+  ctx.fillStyle = OUTLINE;
   ctx.beginPath();
-  ctx.moveTo(face * 7, -1.5);
-  ctx.lineTo(face * 11.5, -1.5);
-  ctx.stroke();
+  ctx.arc(face * 7, -2, 1.6, 0, 6.283);
+  ctx.arc(face * 11.5, -2, 1.6, 0, 6.283);
+  ctx.fill();
   ctx.restore();
 }
 

@@ -109,6 +109,12 @@ export const CLUSTERS: readonly Cluster[] = [
   // not the coast itself, so its gap is measured against those.
   { id: 'gateway', x: -7130, y: -600, link: 'hop', satellites: [[60, 430], [300, 430]] },
 
+  /* ---- THE MIGHTY J SON'S KEEP: the villain's home at the world's edge ---- */
+  // Placed so its gap measures well past one bare drift ring: nobody reaches
+  // it without oxygen helmets. Move it by editing this one line; the gap is
+  // measured and reported by the world stats, never assumed.
+  { id: 'json_keep', x: 7600, y: 5600, link: 'hop', satellites: [[150, 470]] },
+
   /* ---- decentralised offshoots: little stars trailing off into space ---- */
   // These hold no landmarks. They exist so the world does not simply stop at
   // the coast: rail keeps going out into the dark in the classic
@@ -146,6 +152,7 @@ export type IconKey =
   | 'door'
   | 'hivemark'
   | 'blocks'
+  | 'jsonboss'
   | 'pulse'
   | 'gate';
 
@@ -219,7 +226,11 @@ export const LANDMARKS: readonly Landmark[] = [
   { id: 'our_dapps', kind: 'external', path: 'https://hive.io/eco/', labelKey: 'navigation.main_nav_bar.out_dapps', category: 'dapp', icon: 'launchpad', place: { in: 'cluster', cluster: 'launch', angleDeg: 60, dist: 700 } },
   { id: 'hive_dapps', kind: 'external', path: 'https://hivedapps.com/', labelKey: 'navigation.explore_nav.hive_dapps', category: 'dapp', icon: 'spaceship', place: { in: 'cluster', cluster: 'launch', angleDeg: 180, dist: 470 } },
   // The gateway (walled off): a lone door in the dark.
-  { id: 'sign_up', kind: 'external', path: 'https://signup.hive.io/', labelKey: 'navigation.main_nav_bar.sign_up', category: 'social', icon: 'door', place: { in: 'cluster', cluster: 'gateway', angleDeg: 180, dist: 500 } }
+  { id: 'sign_up', kind: 'external', path: 'https://signup.hive.io/', labelKey: 'navigation.main_nav_bar.sign_up', category: 'social', icon: 'door', place: { in: 'cluster', cluster: 'gateway', angleDeg: 180, dist: 500 } },
+  // THE MIGHTY J SON himself, crouched on his keep at the edge of the world.
+  // His link leads to the block explorer: the one place you can stare at the
+  // raw JSON he hoards. BIG, so the silhouette is visible from the far coast.
+  { id: 'json_keep', kind: 'explorer', path: '/', labelKey: 'hive_frontend_universe.landmarks.json_keep', category: 'dapp', icon: 'jsonboss', place: { in: 'cluster', cluster: 'json_keep', angleDeg: 30, dist: 520 }, big: true }
 ];
 
 /**
@@ -254,6 +265,33 @@ export function clusterLandmarkIndexes(clusterId: string): number[] {
     lm.place.in === 'cluster' && lm.place.cluster === clusterId ? i : -1
   ).filter((i) => i >= 0);
 }
+
+/* ----------------------- the Mighty J SON's holes ----------------------- */
+
+/**
+ * TROLL HOLES: the mouths of the Mighty J SON's network, sunk into the
+ * terrain. Thieves that steal the player's tokens run for the NEAREST of
+ * these; whatever goes down a hole is fed to J SON and gone. The keep at the
+ * world's edge is the fifth mouth, so a thief near the east coast may flee
+ * clear off the land.
+ *
+ * Every position is one hand-tunable line, inside a landmass on purpose.
+ */
+export interface TrollHole {
+  id: string;
+  x: number;
+  y: number;
+}
+
+export const TROLL_HOLES: readonly TrollHole[] = [
+  { id: 'hole_nw', x: -3000, y: -2300 },
+  { id: 'hole_sw', x: -3900, y: -1800 },
+  { id: 'hole_centre', x: 150, y: -3700 },
+  { id: 'hole_south', x: 1040, y: 2130 },
+  { id: 'hole_east', x: 4000, y: 2260 },
+  // The keep itself: the final mouth, off the land entirely.
+  { id: 'json_keep', x: 7600, y: 5600 }
+];
 
 /* --------------------------- the witness ring --------------------------- */
 

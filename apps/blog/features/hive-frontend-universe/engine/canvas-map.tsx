@@ -22,7 +22,7 @@ import { useCommunities } from '../hooks/use-communities';
 import { useWitnesses } from '../hooks/use-witnesses';
 import { HFU_COPY } from '../lib/strings';
 import { TIERS, type Board } from '../lib/board';
-import { WORLD, LANDMARKS, LANDMARK_ACCOUNTS, witnessPosts } from '../lib/fixed-world';
+import { WORLD, LANDMARKS, LANDMARK_ACCOUNTS, TROLL_HOLES, witnessPosts } from '../lib/fixed-world';
 import { buildRoutes, POST_LINE_ID, DAPPS_LINE_ID } from '../lib/routes';
 import {
   landmarkHref,
@@ -35,6 +35,7 @@ import {
 import { buildWorld, type GameWorld } from './world';
 import { createCritters, updateCritters, type CritterState } from './critters';
 import { createCoins, updateCoins, type CoinState } from './coins';
+import { createHelmets, updateHelmets, o2Multiplier, HELMET_TOTAL, type HelmetState } from './helmets';
 import { buildGround } from './ground';
 import { requestAvatar, avatarStats } from './avatars';
 import { getUserAvatarUrl } from '@ui/lib/avatar-utils';
@@ -44,6 +45,7 @@ import {
   jump,
   placeAt,
   railUpdate,
+  MOVE,
   type PlayerState,
   type Vec2
 } from './movement';
@@ -208,6 +210,7 @@ const Stage = ({ board }: { board: Board }) => {
   const flowsRef = useRef<FlowState | null>(null);
   const crittersRef = useRef<CritterState | null>(null);
   const coinsRef = useRef<CoinState | null>(null);
+  const helmetsRef = useRef<HelmetState | null>(null);
   const atNodeTick = useRef(-1);
   const inCommunityTick = useRef(-1);
   const mKeyDownAt = useRef(0);
@@ -216,6 +219,19 @@ const Stage = ({ board }: { board: Board }) => {
   const cubes = useMemo(() => placeCubes(world, board.windowStart), [world, board.windowStart]);
   const formations = useMemo(() => placeFormations(world, board.windowStart), [world, board.windowStart]);
   const flowCfg = useMemo(() => flowConfig(board.counts), [board.counts]);
+
+  /**
+   * The oxygen suit. Applied AFTER the ordinary jump so movement.ts stays
+   * untouched: the jump grants its usual one ring of fuel and the suit tops
+   * it up to o2Multiplier() rings' worth.
+   */
+  const hopWithO2 = () => {
+    const p = playerRef.current;
+    jump(p, world.edges, inputRef.current);
+    if (p.mode === 'drift') {
+      p.fuel = MOVE.DRIFT_TIME * o2Multiplier(helmetsRef.current?.count ?? 0);
+    }
+  };
 
   const toggleFullMap = () => {
     fullMapRef.current = !fullMapRef.current;
@@ -235,6 +251,7 @@ const Stage = ({ board }: { board: Board }) => {
     crittersRef.current = createCritters(world, board.windowStart);
     // Tokens minted from the window's REAL custom_json count.
     coinsRef.current = createCoins(world, board.counts.customJson, board.windowStart);
+    helmetsRef.current = createHelmets();
 
     // Spawn just inside the mesh beside the Basecamp landmark.
     const basecampIdx = LANDMARKS.findIndex((lm) => lm.id === 'basecamp');
@@ -275,7 +292,7 @@ const Stage = ({ board }: { board: Board }) => {
         mapHeldRef.current = true; // hold to peek…
       }
       keysRef.current[k] = true;
-      if ((k === ' ' || k === 'z') && !fullMapRef.current) jump(p, edges, inputRef.current);
+      if ((k === ' ' || k === 'z') && !fullMapRef.current) hopWithO2();
       if (k === 'escape' && fullMapRef.current) {
         fullMapRef.current = false;
         setFullMap(false);
@@ -593,7 +610,8 @@ const Stage = ({ board }: { board: Board }) => {
       if (crittersRef.current) updateCritters(crittersRef.current, world, dt);
       // The HUD is painted on the canvas every frame, so the token counts
       // need no React state to stay current.
-      if (coinsRef.current) updateCoins(coinsRef.current, p, crittersRef.current, factories, dt);
+      if (coinsRef.current) updateCoins(coinsRef.current, p, crittersRef.current, factories, TROLL_HOLES, dt);
+      if (helmetsRef.current) updateHelmets(helmetsRef.current, p.x, p.y);
       requestNearbyAvatars(dt);
       camUpdate(dt);
 
@@ -649,6 +667,7 @@ const Stage = ({ board }: { board: Board }) => {
         routeLayers,
         critters: crittersRef.current,
         coins: coinsRef.current,
+        helmetState: helmetsRef.current,
         ground,
         activeCommunity: inCommunityTick.current,
         player: p,
@@ -657,6 +676,9 @@ const Stage = ({ board }: { board: Board }) => {
         shake,
         warpFx: warpFxRef.current,
         hud: {
+          helmetsLabel: t('hive_frontend_universe.hud.helmets'),
+          helmets: helmetsRef.current?.count ?? 0,
+          helmetTotal: HELMET_TOTAL,
           tokensLabel: t('hive_frontend_universe.hud.tokens'),
           carried: coinsRef.current?.carried ?? 0,
           banked: coinsRef.current?.banked ?? 0,
@@ -821,7 +843,7 @@ const Stage = ({ board }: { board: Board }) => {
           stickRef.current.y = y;
         }}
         onHop={() => {
-          if (!fullMapRef.current) jump(playerRef.current, world.edges, inputRef.current);
+          if (!fullMapRef.current) hopWithO2();
         }}
         onMapHold={(held) => {
           mapHeldRef.current = held;

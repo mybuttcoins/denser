@@ -899,12 +899,14 @@
       "write_post": "Write a post",
       "wallet": "Wallet",
       "arcade": "Arcade",
-      "healthchecker": "Healthchecker"
+      "healthchecker": "Healthchecker",
+      "json_keep": "The Mighty J SON"
     },
     "hud": {
       "houses": "HOUSES",
       "window": "WINDOW",
-      "tokens": "TOKENS"
+      "tokens": "TOKENS",
+      "helmets": "HELMETS"
     },
     "map": {
       "hint": "Tap a landmark to travel there",

@@ -844,12 +844,14 @@
       "write_post": "اكتب منشورًا",
       "wallet": "المحفظة",
       "arcade": "أركيد",
-      "healthchecker": "Healthchecker"
+      "healthchecker": "Healthchecker",
+      "json_keep": "The Mighty J SON"
     },
     "hud": {
       "houses": "المنازل",
       "window": "النافذة",
-      "tokens": "رموز"
+      "tokens": "رموز",
+      "helmets": "خوذات"
     },
     "map": {
       "hint": "انقر على معلم للسفر إليه",
