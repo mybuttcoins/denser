@@ -25,7 +25,12 @@ const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH || '';
  * which is a dead end on the one place every player looks for first.
  */
 const WALLET_FALLBACK = 'https://wallet.hive.blog';
-const EXPLORER_FALLBACK = 'https://hiveblocks.com';
+/**
+ * hivehub.dev, not hiveblocks.com: the latter answered 502 when every link in
+ * this module was audited, and a dead explorer would be the villain's own
+ * link failing.
+ */
+const EXPLORER_FALLBACK = 'https://hivehub.dev';
 
 export type TargetKind = 'post' | 'landmark' | 'community' | 'witness';
 

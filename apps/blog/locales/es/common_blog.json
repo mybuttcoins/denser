@@ -789,7 +789,8 @@
     "panel": {
       "open": "Abrir",
       "skip": "Omitir",
-      "nothing_here": "Aquí no hay nada todavía. Este lugar abrirá más adelante."
+      "nothing_here": "Aquí no hay nada todavía. Este lugar abrirá más adelante.",
+      "real_games": "Juegos reales en Hive"
     },
     "landmarks": {
       "search": "Buscar",

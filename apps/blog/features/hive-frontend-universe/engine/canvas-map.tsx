@@ -22,7 +22,7 @@ import { useCommunities } from '../hooks/use-communities';
 import { useWitnesses } from '../hooks/use-witnesses';
 import { HFU_COPY } from '../lib/strings';
 import { TIERS, type Board } from '../lib/board';
-import { WORLD, LANDMARKS, LANDMARK_ACCOUNTS, TROLL_HOLES, witnessPosts } from '../lib/fixed-world';
+import { WORLD, LANDMARKS, LANDMARK_ACCOUNTS, TROLL_HOLES, ARCADE_GAMES, witnessPosts } from '../lib/fixed-world';
 import { buildRoutes, POST_LINE_ID, DAPPS_LINE_ID } from '../lib/routes';
 import {
   landmarkHref,
@@ -341,8 +341,8 @@ const Stage = ({ board }: { board: Board }) => {
         }
       };
 
-      // Posts: the marker radius grew this pass, and the hit target stays half
-      // again bigger than the art.
+      // Posts: the hit target is over twice the visual marker with a floor,
+      // because "half again" was still too hard to hit in real play.
       const rNode = Math.min(17 / Math.max(z, 0.35), 180);
       for (const n of nodes) {
         if (n.kind !== 'house') continue;
@@ -359,7 +359,7 @@ const Stage = ({ board }: { board: Board }) => {
             x: n.x,
             y: n.y
           },
-          rNode * 1.18 * 1.6
+          Math.max(rNode * 2.6, 90)
         );
       }
 
@@ -370,7 +370,7 @@ const Stage = ({ board }: { board: Board }) => {
         const vis = landmarkVisuals[n.ref];
         if (!lm || !vis) continue;
         const minor = lm.icon === 'doc' || lm.icon === 'docq';
-        const reach = lm.big ? 420 : ((minor ? 34 : 52) / Math.max(z, 0.45)) * 1.5;
+        const reach = lm.big ? 520 : Math.max(((minor ? 34 : 52) / Math.max(z, 0.45)) * 2.2, 80);
         consider(
           {
             kind: 'landmark',
@@ -385,23 +385,29 @@ const Stage = ({ board }: { board: Board }) => {
         );
       }
 
-      // Community bubbles: the whole bubble is the target.
+      // Community bubbles: the whole bubble is the target, plus a margin.
+      //
+      // Read through the REF, never the query state: this closure is created
+      // once per world, before the communities query resolves, so the state
+      // variable in here is permanently undefined. That exact mistake shipped
+      // in pass ten and made every community bubble unhoverable and
+      // unclickable. The ref carries the community's account handle too, so
+      // nothing here needs the query state at all.
       for (const n of nodes) {
         if (n.kind !== 'community') continue;
         const c = communityVisualsRef.current[n.ref];
-        const meta = communities?.[n.ref];
-        if (!c || !meta) continue;
+        if (!c) continue;
         consider(
           {
             kind: 'community',
             node: n.id,
             title: c.label,
-            href: communityHref(meta.name),
+            href: communityHref(c.handle),
             travelable: world.travelReachable[n.id],
             x: n.x,
             y: n.y
           },
-          c.radius
+          c.radius * 1.15
         );
       }
 
@@ -419,7 +425,7 @@ const Stage = ({ board }: { board: Board }) => {
             x: wt.x,
             y: wt.y - towerH * 0.87
           },
-          towerH * 0.34
+          towerH * 0.45
         );
       }
       return best;
@@ -823,6 +829,11 @@ const Stage = ({ board }: { board: Board }) => {
           kind={atLandmark.kind}
           path={atLandmark.path}
           accent={CATEGORY_ACCENT[atLandmark.category]}
+          links={
+            atLandmark.id === 'arcade'
+              ? ARCADE_GAMES.map((g) => ({ label: g.name, href: g.url }))
+              : undefined
+          }
           onSkip={skip}
         />
       ) : null}

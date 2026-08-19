@@ -234,6 +234,20 @@ export const LANDMARKS: readonly Landmark[] = [
 ];
 
 /**
+ * THE ARCADE'S CABINET LIST: real games running on Hive, offered as links
+ * when a player visits the Arcade. Curated by hand and each URL verified
+ * alive before being added; names are proper nouns, so they are not
+ * translated. Add a game by adding a line.
+ */
+export const ARCADE_GAMES: readonly { name: string; url: string }[] = [
+  { name: 'Splinterlands', url: 'https://splinterlands.com' },
+  { name: 'Rising Star', url: 'https://www.risingstargame.com' },
+  { name: 'dCrops', url: 'https://www.dcrops.com' },
+  { name: 'Holozing', url: 'https://holozing.com' },
+  { name: 'Terracore', url: 'https://terracore.xyz' }
+];
+
+/**
  * Curated map: landmark id to the REAL Hive account whose avatar it wears
  * (fetched through the app's own avatar proxy). Landmarks not listed here keep
  * their code-drawn icon.

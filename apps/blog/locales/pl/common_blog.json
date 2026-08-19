@@ -794,7 +794,8 @@
     "panel": {
       "open": "Otwórz",
       "skip": "Pomiń",
-      "nothing_here": "Tu jeszcze nic nie ma. To miejsce otworzy się później."
+      "nothing_here": "Tu jeszcze nic nie ma. To miejsce otworzy się później.",
+      "real_games": "Prawdziwe gry na Hive"
     },
     "landmarks": {
       "search": "Szukaj",

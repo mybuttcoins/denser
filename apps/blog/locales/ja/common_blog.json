@@ -789,7 +789,8 @@
     "panel": {
       "open": "開く",
       "skip": "スキップ",
-      "nothing_here": "ここにはまだ何もありません。後で開きます。"
+      "nothing_here": "ここにはまだ何もありません。後で開きます。",
+      "real_games": "Hiveの実際のゲーム"
     },
     "landmarks": {
       "search": "検索",

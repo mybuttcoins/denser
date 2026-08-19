@@ -789,7 +789,8 @@
     "panel": {
       "open": "Apri",
       "skip": "Salta",
-      "nothing_here": "Qui non c’è ancora nulla. Questo posto aprirà più avanti."
+      "nothing_here": "Qui non c’è ancora nulla. Questo posto aprirà più avanti.",
+      "real_games": "Giochi reali su Hive"
     },
     "landmarks": {
       "search": "Cerca",

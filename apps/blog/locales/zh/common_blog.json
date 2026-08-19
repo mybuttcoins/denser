@@ -789,7 +789,8 @@
     "panel": {
       "open": "打开",
       "skip": "跳过",
-      "nothing_here": "这里还没有内容,稍后开放。"
+      "nothing_here": "这里还没有内容,稍后开放。",
+      "real_games": "Hive 上的真实游戏"
     },
     "landmarks": {
       "search": "搜索",

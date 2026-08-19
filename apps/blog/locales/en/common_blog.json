@@ -891,7 +891,8 @@
     "panel": {
       "open": "Open",
       "skip": "Skip",
-      "nothing_here": "Nothing here yet. This place opens later."
+      "nothing_here": "Nothing here yet. This place opens later.",
+      "real_games": "Real games on Hive"
     },
     "landmarks": {
       "search": "Search",

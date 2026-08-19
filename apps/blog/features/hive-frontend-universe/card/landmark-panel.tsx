@@ -12,48 +12,32 @@
  * `noopener noreferrer` guard the nav uses (the LeavePageDialog interstitial
  * is reserved for untrusted links found inside post bodies — these are not
  * that). A landmark with no page yet says so plainly instead of an Open button.
+ *
+ * WHERE a landmark leads is not decided here: `lib/targets.ts` owns that
+ * mapping, shared with the hover chip and the click handler, so the three can
+ * never disagree. This panel used to carry its own copy, which is exactly how
+ * the wallet ended up saying "nothing here" in one place while hovering said
+ * otherwise.
  */
 
-import env from '@beam-australia/react-env';
-import { siteConfig } from '@ui/config/site';
 import { useTranslation } from '@/blog/i18n/client';
 import { ACCENT_HEX } from '../engine/render';
+import { landmarkHref } from '../lib/targets';
 import type { LandmarkKind } from '../lib/fixed-world';
-
-const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH || '';
 
 export interface LandmarkPanelProps {
   title: string;
   kind: LandmarkKind;
   path: string;
   accent: string;
+  /** Extra curated destinations this place offers (the Arcade's real games). */
+  links?: { label: string; href: string }[];
   onSkip: () => void;
 }
 
-function resolveHref(kind: LandmarkKind, path: string): string | null {
-  switch (kind) {
-    case 'internal':
-      return `${BASE_PATH}${path}`;
-    case 'wallet': {
-      const wallet = env('WALLET_ENDPOINT');
-      return wallet ? `${wallet}${path === '/' ? '' : path}` : null;
-    }
-    case 'explorer': {
-      const explorer = env('EXPLORER_DOMAIN');
-      return explorer ? `${explorer}${path === '/' ? '' : path}` : null;
-    }
-    case 'chat':
-      return siteConfig.openhiveChatUri;
-    case 'external':
-      return path;
-    case 'none':
-      return null;
-  }
-}
-
-export const LandmarkPanel = ({ title, kind, path, accent, onSkip }: LandmarkPanelProps) => {
+export const LandmarkPanel = ({ title, kind, path, accent, links, onSkip }: LandmarkPanelProps) => {
   const { t } = useTranslation('common_blog');
-  const href = resolveHref(kind, path);
+  const href = landmarkHref(kind, path);
   const color = ACCENT_HEX[accent] ?? '#5EE9D5';
 
   return (
@@ -69,6 +53,27 @@ export const LandmarkPanel = ({ title, kind, path, accent, onSkip }: LandmarkPan
         </div>
         {href === null ? (
           <p className="mb-3 text-sm text-[#8fa6b4]">{t('hive_frontend_universe.panel.nothing_here')}</p>
+        ) : null}
+        {links?.length ? (
+          <div className="mb-3">
+            <p className="mb-1.5 font-mono text-[11px] uppercase tracking-wide text-[#8fa6b4]">
+              {t('hive_frontend_universe.panel.real_games')}
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {links.map((l) => (
+                <a
+                  key={l.href}
+                  href={l.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="rounded-md border border-white/15 px-2 py-1 font-mono text-xs text-[#e9f4f8] transition-colors hover:bg-white/10"
+                  data-testid="hfu-arcade-game-link"
+                >
+                  {l.label}
+                </a>
+              ))}
+            </div>
+          </div>
         ) : null}
         <div className="grid grid-cols-2 gap-2">
           {href !== null ? (
