@@ -22,7 +22,15 @@ import { useCommunities } from '../hooks/use-communities';
 import { useWitnesses } from '../hooks/use-witnesses';
 import { HFU_COPY } from '../lib/strings';
 import { TIERS, type Board } from '../lib/board';
-import { WORLD, LANDMARKS, LANDMARK_ACCOUNTS, TROLL_HOLES, ARCADE_GAMES, witnessPosts } from '../lib/fixed-world';
+import {
+  WORLD,
+  LANDMARKS,
+  LANDMARK_ACCOUNTS,
+  TROLL_HOLES,
+  ARCADE_GAMES,
+  DAPP_DIRECTORY,
+  witnessPosts
+} from '../lib/fixed-world';
 import { buildRoutes, POST_LINE_ID, DAPPS_LINE_ID } from '../lib/routes';
 import {
   landmarkHref,
@@ -39,6 +47,7 @@ import { createHelmets, updateHelmets, o2Multiplier, HELMET_TOTAL, type HelmetSt
 import { buildGround } from './ground';
 import { requestAvatar, avatarStats } from './avatars';
 import { getUserAvatarUrl } from '@ui/lib/avatar-utils';
+import { FERRIS_SPIN } from './icons';
 import {
   createPlayer,
   driftUpdate,
@@ -211,6 +220,19 @@ const Stage = ({ board }: { board: Board }) => {
   const crittersRef = useRef<CritterState | null>(null);
   const coinsRef = useRef<CoinState | null>(null);
   const helmetsRef = useRef<HelmetState | null>(null);
+  /**
+   * The current RIDE: cosmetic transport that never touches the player's
+   * edge-plus-fraction state. 'wheel' orbits the DHF ferris (a full rotation
+   * earns a breath of spare air); 'beam' lifts the bug up a witness citadel
+   * and opens the witness's profile panel at the top.
+   */
+  const rideRef = useRef<
+    | { type: 'wheel'; node: number; cx: number; cy: number; startAngle: number }
+    | { type: 'beam'; x: number; baseY: number; topY: number; t: number; title: string; href: string }
+    | null
+  >(null);
+  /** Re-armed by leaving the wheel, so one visit grants one ride. */
+  const wheelArmedRef = useRef(true);
   const atNodeTick = useRef(-1);
   const inCommunityTick = useRef(-1);
   const mKeyDownAt = useRef(0);
@@ -229,7 +251,15 @@ const Stage = ({ board }: { board: Board }) => {
     const p = playerRef.current;
     jump(p, world.edges, inputRef.current);
     if (p.mode === 'drift') {
-      p.fuel = MOVE.DRIFT_TIME * o2Multiplier(helmetsRef.current?.count ?? 0);
+      const suit = helmetsRef.current;
+      let rings = o2Multiplier(suit?.count ?? 0);
+      // A breath of spare air (earned on the ferris wheel) is a whole extra
+      // ring, spent on this one jump.
+      if (suit && suit.spareAir > 0) {
+        suit.spareAir--;
+        rings += 1;
+      }
+      p.fuel = MOVE.DRIFT_TIME * rings;
     }
   };
 
@@ -411,6 +441,25 @@ const Stage = ({ board }: { board: Board }) => {
         );
       }
 
+      // The population: every creature answers to a name on hover. Display
+      // only; a critter is not a link, so clicking it does nothing.
+      if (crittersRef.current) {
+        for (const cr of crittersRef.current.critters) {
+          consider(
+            {
+              kind: 'critter',
+              node: -1,
+              title: t(`hive_frontend_universe.critters.${cr.kind}`),
+              href: null,
+              travelable: false,
+              x: cr.x,
+              y: cr.y
+            },
+            80
+          );
+        }
+      }
+
       // Witness citadels: scenery, so they have no node, but they still lead
       // somewhere real. Aim at the crowned head, which is where the eye goes.
       for (const wt of witnessVisualsRef.current) {
@@ -459,6 +508,9 @@ const Stage = ({ board }: { board: Board }) => {
         setClickedNode(target.node);
         setClickedWitness(null);
         return;
+      }
+      if (target.kind === 'critter') {
+        return; // named on hover, but not a destination
       }
       if (target.kind === 'witness') {
         setClickedWitness({ title: target.title, href: target.href });
@@ -595,8 +647,11 @@ const Stage = ({ board }: { board: Board }) => {
 
       readInput();
       if (p.stuck > 0) p.stuck = Math.max(0, p.stuck - dt);
-      // The bug parks while the full travel map is open.
-      if (!fullMapRef.current) {
+      // The bug parks while the full travel map is open, and hands itself
+      // over while a beam has it: position state is untouched during the
+      // ride and restored by placeAt when it tops out.
+      const beamRiding = rideRef.current?.type === 'beam';
+      if (!fullMapRef.current && !beamRiding) {
         if (p.mode === 'rail') {
           railUpdate(p, edges, incident, inputRef.current, dt);
         } else {
@@ -624,6 +679,68 @@ const Stage = ({ board }: { board: Board }) => {
       if (p.atNode !== atNodeTick.current) {
         atNodeTick.current = p.atNode;
         setAtNode(p.atNode);
+      }
+
+      // ---- RIDES: cosmetic transport, physics untouched. ----
+      const ferrisIdx = LANDMARKS.findIndex((lm) => lm.id === 'proposals');
+      const ferrisNode = world.landmarkNodeByIndex[ferrisIdx] ?? -1;
+      const wheelRadius = 330; // matches drawFerris: BIG s=150 drawn at R = s * 2.2
+      let ride = rideRef.current;
+
+      // Board the wheel by parking at it. One visit, one ride.
+      if (!ride && wheelArmedRef.current && p.atNode === ferrisNode && ferrisNode >= 0) {
+        const n = nodes[ferrisNode];
+        ride = { type: 'wheel', node: ferrisNode, cx: n.x, cy: n.y, startAngle: ts / 1000 * FERRIS_SPIN };
+        rideRef.current = ride;
+        wheelArmedRef.current = false;
+      }
+      if (p.atNode !== ferrisNode) wheelArmedRef.current = true;
+
+      if (ride?.type === 'wheel') {
+        const angle = (ts / 1000) * FERRIS_SPIN;
+        if (p.atNode !== ferrisNode) {
+          rideRef.current = null; // stepped off early, no breath earned
+        } else if (angle - ride.startAngle >= Math.PI * 2) {
+          // One full rotation: a breath of spare air.
+          if (helmetsRef.current) {
+            helmetsRef.current.spareAir++;
+            helmetsRef.current.spareFlash = 1.2;
+          }
+          rideRef.current = null;
+        }
+      }
+
+      // A drifting bug that brushes a citadel's base catches the beam up.
+      if (!ride && p.mode === 'drift') {
+        for (const wt of witnessVisualsRef.current) {
+          if (Math.hypot(wt.x - p.x, wt.y - p.y) > 260) continue;
+          const towerH = 1680 - (wt.rank - 1) * 22;
+          rideRef.current = {
+            type: 'beam',
+            x: wt.x,
+            baseY: wt.y,
+            topY: wt.y - towerH * 0.87,
+            t: 0,
+            title: `${wt.rank}. ${wt.name}`,
+            href: profileHref(wt.name)
+          };
+          break;
+        }
+      }
+      if (rideRef.current?.type === 'beam') {
+        const beam = rideRef.current;
+        beam.t += dt / 1.4;
+        if (beam.t >= 1) {
+          // Arrived at the crown: meet the witness, then set down gently on
+          // the last rail node (the same safe return a lost signal uses,
+          // minus the stun).
+          setClickedWitness({ title: beam.title, href: beam.href });
+          placeAt(p, edges, incident, p.lastNode);
+          rideRef.current = null;
+        }
+      }
+      if (helmetsRef.current && helmetsRef.current.spareFlash > 0) {
+        helmetsRef.current.spareFlash = Math.max(0, helmetsRef.current.spareFlash - dt);
       }
 
       // YOU ARE HERE: which community bubble the bug is standing in. Bubbles
@@ -674,6 +791,16 @@ const Stage = ({ board }: { board: Board }) => {
         critters: crittersRef.current,
         coins: coinsRef.current,
         helmetState: helmetsRef.current,
+        rideOverlay: (() => {
+          const rd = rideRef.current;
+          if (!rd) return null;
+          if (rd.type === 'wheel') {
+            const a = (ts / 1000) * FERRIS_SPIN;
+            return { x: rd.cx + Math.cos(a) * wheelRadius, y: rd.cy + Math.sin(a) * wheelRadius + wheelRadius * 0.17 };
+          }
+          const ease = rd.t * rd.t * (3 - 2 * rd.t);
+          return { x: rd.x, y: rd.baseY + (rd.topY - rd.baseY) * ease };
+        })(),
         ground,
         activeCommunity: inCommunityTick.current,
         player: p,
@@ -832,7 +959,14 @@ const Stage = ({ board }: { board: Board }) => {
           links={
             atLandmark.id === 'arcade'
               ? ARCADE_GAMES.map((g) => ({ label: g.name, href: g.url }))
-              : undefined
+              : atLandmark.id === 'our_dapps' || atLandmark.id === 'hive_dapps'
+                ? DAPP_DIRECTORY.map((d) => ({ label: d.name, href: d.url }))
+                : undefined
+          }
+          linksLabel={
+            atLandmark.id === 'arcade'
+              ? t('hive_frontend_universe.panel.real_games')
+              : t('hive_frontend_universe.panel.dapps')
           }
           onSkip={skip}
         />

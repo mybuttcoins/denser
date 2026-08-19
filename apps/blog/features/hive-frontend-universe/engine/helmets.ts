@@ -39,6 +39,14 @@ export interface HelmetState {
   helmets: HelmetPickup[];
   /** How many the player has compiled into the suit. */
   count: number;
+  /**
+   * Breaths of SPARE AIR earned from rides (one full ferris rotation grants
+   * one). Each adds a whole extra ring of fuel to one jump, then is spent.
+   * Session-only on purpose: ride again, breathe again.
+   */
+  spareAir: number;
+  /** Seconds of grant flash remaining, for the renderer. */
+  spareFlash: number;
 }
 
 export const HELMET_TOTAL = 21;
@@ -94,7 +102,7 @@ export function createHelmets(): HelmetState {
       count++;
     }
   }
-  return { helmets, count };
+  return { helmets, count, spareAir: 0, spareFlash: 0 };
 }
 
 /** Collect by proximity, any mode. Persists immediately. */
@@ -171,11 +179,23 @@ export function drawSuitBubble(
   ctx: CanvasRenderingContext2D,
   x: number,
   y: number,
-  count: number,
+  state: HelmetState,
   time: number
 ): void {
-  if (count <= 0) return;
-  const r = 40 + count * 1.6;
+  // A fresh breath of spare air flashes a ring even on a bare bug.
+  if (state.spareFlash > 0) {
+    ctx.globalAlpha = state.spareFlash * 0.8;
+    ctx.strokeStyle = '#9be8ff';
+    ctx.lineWidth = 5;
+    ctx.beginPath();
+    ctx.arc(x, y, 40 + (1.2 - state.spareFlash) * 150, 0, 6.283);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+  const count = state.count;
+  if (count <= 0 && state.spareAir <= 0) return;
+  // Spare breaths bulge the suit a little beyond the compiled helmets.
+  const r = 40 + count * 1.6 + state.spareAir * 3;
   ctx.save();
   ctx.translate(x, y);
   ctx.globalAlpha = 0.16;

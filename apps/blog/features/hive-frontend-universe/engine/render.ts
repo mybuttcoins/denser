@@ -46,8 +46,8 @@ export const PALETTE = {
    * the terrain instead of floating over it. The post line and the landmarks
    * are what the eye should catch.
    */
-  mesh: '#6fbcd8',
-  spoke: '#ac92f0',
+  mesh: '#8fd8f2',
+  spoke: '#c0a8ff',
   junction: '#7fd0e8',
   newRing: '#5df0ff',
   traffic: '#9fd6e4',
@@ -148,6 +148,7 @@ const BIG_SIZE: Partial<Record<IconKey, number>> = {
   arcadebldg: 133,
   blackhole: 119,
   jsonboss: 165,
+  launchpad: 140,
   tent: 350
 };
 
@@ -246,6 +247,12 @@ export interface RenderScene {
   coins: CoinState | null;
   /** The 21 oxygen helmets and how many the player has compiled. */
   helmetState: HelmetState | null;
+  /**
+   * While the bug rides something (the ferris wheel, a witness beam), it is
+   * drawn HERE instead of at its physics position. Cosmetic only: the player's
+   * edge-plus-fraction state is never touched by a ride.
+   */
+  rideOverlay: { x: number; y: number } | null;
   /** The filled landmasses under everything; built once per window. */
   ground: Ground | null;
   /** Slot of the community bubble the bug is standing in, or -1. Display only. */
@@ -453,9 +460,13 @@ export function drawScene(scene: RenderScene): void {
     // went too far: the streets read as hairlines you would not think to ride.
     // Streets are fat where you ride them and slimmer on the pulled-out map,
     // where nobody is travelling and the extra fill was costing real frame time.
-    const streetW = (kind === 'mesh' ? 3.4 : 3.1) * (z < 0.12 ? 0.5 : 1);
+    // Thicker and brighter again, and the whole network BREATHES: a slow
+    // alpha pulse offset per stroke family makes the map read as a living
+    // thing rather than a printed one. One alpha per family costs nothing.
+    const streetW = (kind === 'mesh' ? 4.4 : 4.0) * (z < 0.12 ? 0.55 : 1);
     ctx.lineWidth = streetW / Math.max(z, 0.05);
-    ctx.globalAlpha = kind === 'mesh' ? 0.62 : 0.58;
+    const breathe = 0.08 * Math.sin(time * 1.4 + (kind === 'mesh' ? 0 : 1.1));
+    ctx.globalAlpha = (kind === 'mesh' ? 0.74 : 0.68) + breathe;
     for (const e of edges) {
       if (e.kind !== kind || !edgeVis(e)) continue;
       strokeEdge(e);
@@ -478,8 +489,13 @@ export function drawScene(scene: RenderScene): void {
   // map zoom. Collapsing to a single fatter core pass there is invisible and
   // pays for itself.
   const routeLod = z < 0.12;
+  let layerPhase = 0;
   for (const layer of scene.routeLayers) {
     if (!layer.edges.size) continue;
+    // The transit lines pulse gently out of phase with each other and the
+    // streets, so the whole network reads as circulating rather than static.
+    const routeBreathe = 1 + 0.09 * Math.sin(time * 1.8 + layerPhase);
+    layerPhase += 2.1;
     const passes = routeLod
       ? [{ col: layer.core, w: layer.width * 1.5, a: 1 }]
       : [
@@ -490,7 +506,7 @@ export function drawScene(scene: RenderScene): void {
     if (layer.dash) ctx.setLineDash(layer.dash.map((d) => d / Math.max(z, 0.05)));
     for (const p of passes) {
       ctx.strokeStyle = p.col;
-      ctx.lineWidth = p.w / Math.max(z, 0.05);
+      ctx.lineWidth = (p.w * routeBreathe) / Math.max(z, 0.05);
       ctx.globalAlpha = p.a;
       for (const e of edges) {
         if (!layer.edges.has(e.id) || !edgeVis(e)) continue;
@@ -795,9 +811,11 @@ export function drawScene(scene: RenderScene): void {
     }
   }
 
-  drawBug(ctx, player, time);
+  const bugX = scene.rideOverlay ? scene.rideOverlay.x : player.x;
+  const bugY = scene.rideOverlay ? scene.rideOverlay.y : player.y;
+  drawBug(ctx, player, time, bugX, bugY);
   if (scene.helmetState) {
-    drawSuitBubble(ctx, player.x, player.y, scene.helmetState.count, time);
+    drawSuitBubble(ctx, bugX, bugY, scene.helmetState, time);
   }
 
   // Warp effect: expanding rings at the bug.
@@ -902,11 +920,17 @@ function drawHud(scene: RenderScene): void {
  * The bug, kept exactly as before: red diamond body, antennae with googly
  * eyes, the cyan surfboard, and the drift countdown ring.
  */
-function drawBug(ctx: CanvasRenderingContext2D, p: PlayerState, time: number): void {
+function drawBug(
+  ctx: CanvasRenderingContext2D,
+  p: PlayerState,
+  time: number,
+  atX: number,
+  atY: number
+): void {
   const BW = 19;
   const BH = 21;
   ctx.save();
-  ctx.translate(p.x, p.y);
+  ctx.translate(atX, atY);
 
   ctx.save();
   ctx.rotate(p.face >= 0 ? 0.18 : -0.18);

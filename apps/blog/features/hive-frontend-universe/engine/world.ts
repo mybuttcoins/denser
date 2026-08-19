@@ -37,9 +37,7 @@ import {
   insideBody,
   landmassAt,
   sampleBodyPoint,
-  coastDistanceAt,
-  communitySlots,
-  rimPosition,
+  COMMUNITY_SPOTS,
   landmarkPosition,
   bodyLandmarkIndexes,
   clusterLandmarkIndexes,
@@ -424,23 +422,26 @@ export function buildWorld(windowStart: number, houseCount: number): GameWorld {
     }
   };
   const placedBubbles: number[] = [];
-  const communityNodeBySlot: number[] = communitySlots().map((slot) => {
-    const attempts: [number, number][] = [];
-    for (const nudge of [0, 3, -3]) {
-      for (const m of [1, 0.62, 1.5]) attempts.push([slot.angleDeg + nudge, m]);
-    }
-    for (const [ang, m] of attempts) {
-      const coast = coastDistanceAt(ang);
-      const p = rimPosition(ang, coast + WORLD.communityCoastOffset * m * slot.spread);
+  const communityNodeBySlot: number[] = COMMUNITY_SPOTS.map((spot) => {
+    // A few nudges around the fixed mooring, so a bad window's weave cannot
+    // strand a community.
+    const attempts: [number, number][] = [
+      [spot.x, spot.y],
+      [spot.x + 260, spot.y],
+      [spot.x - 260, spot.y],
+      [spot.x, spot.y + 260],
+      [spot.x, spot.y - 260]
+    ];
+    for (const [ax, ay] of attempts) {
       const cands = railCandidateIds
-        .map((id) => ({ id, d: Math.hypot(p.x - px[id], p.y - py[id]) }))
+        .map((id) => ({ id, d: Math.hypot(ax - px[id], ay - py[id]) }))
         .filter((c) => degree[c.id] < MESH_MAX_DEGREE && c.d < 1250)
         .sort((a, b) => a.d - b.d)
         .slice(0, 16);
       for (const cand of cands) {
         const nodeMark = nodes.length;
         const edgeMark = edges.length;
-        const id = addNode(p.x, p.y, 'community', slot.slot);
+        const id = addNode(ax, ay, 'community', spot.slot);
         if (cand.d <= 750) {
           if (addEdge(id, cand.id, false)) {
             placedBubbles.push(id);
@@ -448,8 +449,8 @@ export function buildWorld(windowStart: number, houseCount: number): GameWorld {
           }
         } else {
           // Two segments through a mid junction, gently swayed.
-          const mx = (p.x + px[cand.id]) / 2 + (rng() - 0.5) * 90;
-          const my = (p.y + py[cand.id]) / 2 + (rng() - 0.5) * 90;
+          const mx = (ax + px[cand.id]) / 2 + (rng() - 0.5) * 90;
+          const my = (ay + py[cand.id]) / 2 + (rng() - 0.5) * 90;
           const mid = addNode(mx, my, 'junction', -1);
           if (addEdge(id, mid, false) && addEdge(mid, cand.id, false)) {
             placedBubbles.push(id);
@@ -459,29 +460,26 @@ export function buildWorld(windowStart: number, houseCount: number): GameWorld {
         rollbackTo(nodeMark, edgeMark);
       }
     }
-    // Fallback: chain onto an already-attached neighbour bubble instead (a
-    // strand of bubbles along the arc still reaches the body by rail).
+    // Fallback: chain onto an already-attached neighbour bubble.
     {
-      const coast = coastDistanceAt(slot.angleDeg);
-      const p = rimPosition(slot.angleDeg, coast + WORLD.communityCoastOffset * slot.spread);
       const neighbours = placedBubbles
-        .map((id) => ({ id, d: Math.hypot(p.x - px[id], p.y - py[id]) }))
-        .filter((c) => degree[c.id] < MESH_MAX_DEGREE && c.d < 1250)
+        .map((id) => ({ id, d: Math.hypot(spot.x - px[id], spot.y - py[id]) }))
+        .filter((c) => degree[c.id] < MESH_MAX_DEGREE && c.d < 1600)
         .sort((a, b) => a.d - b.d);
       for (const cand of neighbours) {
         const nodeMark = nodes.length;
         const edgeMark = edges.length;
-        const id = addNode(p.x, p.y, 'community', slot.slot);
+        const id = addNode(spot.x, spot.y, 'community', spot.slot);
         if (addEdge(id, cand.id, false)) {
           placedBubbles.push(id);
           return id;
         }
         rollbackTo(nodeMark, edgeMark);
       }
-      // Truly stuck: keep the bubble at its nominal spot even unattached, so
-      // the slot still exists; counted honestly as a dropped spoke.
+      // Truly stuck: keep the bubble at its mooring even unattached, so the
+      // slot still exists; counted honestly as a dropped spoke.
       droppedSpokes++;
-      return addNode(p.x, p.y, 'community', slot.slot);
+      return addNode(spot.x, spot.y, 'community', spot.slot);
     }
   });
 
@@ -687,7 +685,7 @@ export function buildWorld(windowStart: number, houseCount: number): GameWorld {
       minAngleDeg: Math.round(minAngleDeg * 10) / 10,
       houses: occupied,
       reachableHouses,
-      landmarks: LANDMARKS.length + communitySlots().length,
+      landmarks: LANDMARKS.length + COMMUNITY_SPOTS.length,
       clusters: CLUSTERS.length,
       trailClusters: railClusters,
       hopOnlyClusters: CLUSTERS.filter((c) => c.link === 'hop').map((c) => c.id),

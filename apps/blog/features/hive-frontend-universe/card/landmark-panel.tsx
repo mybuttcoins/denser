@@ -32,10 +32,12 @@ export interface LandmarkPanelProps {
   accent: string;
   /** Extra curated destinations this place offers (the Arcade's real games). */
   links?: { label: string; href: string }[];
+  /** Heading over the links list; the caller localises it. */
+  linksLabel?: string;
   onSkip: () => void;
 }
 
-export const LandmarkPanel = ({ title, kind, path, accent, links, onSkip }: LandmarkPanelProps) => {
+export const LandmarkPanel = ({ title, kind, path, accent, links, linksLabel, onSkip }: LandmarkPanelProps) => {
   const { t } = useTranslation('common_blog');
   const href = landmarkHref(kind, path);
   const color = ACCENT_HEX[accent] ?? '#5EE9D5';
@@ -57,7 +59,7 @@ export const LandmarkPanel = ({ title, kind, path, accent, links, onSkip }: Land
         {links?.length ? (
           <div className="mb-3">
             <p className="mb-1.5 font-mono text-[11px] uppercase tracking-wide text-[#8fa6b4]">
-              {t('hive_frontend_universe.panel.real_games')}
+              {linksLabel ?? t('hive_frontend_universe.panel.real_games')}
             </p>
             <div className="flex flex-wrap gap-1.5">
               {links.map((l) => (

@@ -30,7 +30,6 @@ import {
   BODY_CELLS,
   cellRadiusAt,
   cellsOfLandmass,
-  coastDistanceFrom,
   insideBody,
   landmassAt,
   sampleBodyPoint,
@@ -104,10 +103,9 @@ export const CLUSTERS: readonly Cluster[] = [
   // the max hop and the cluster was a wall. Pass seven removes every
   // uncrossable gap in the world, so this is now a short hop like the others.
   { id: 'launch', x: 6220, y: -1400, link: 'hop', satellites: [[300, 450]] },
-  // The gateway: likewise pulled in from (-8250, -600). Note that the nearest
-  // lines out here are the community bubbles off the diamond's west coast,
-  // not the coast itself, so its gap is measured against those.
-  { id: 'gateway', x: -7130, y: -600, link: 'hop', satellites: [[60, 430], [300, 430]] },
+  // The gateway: a DOOR should feel connected, not stranded, so it is tied on
+  // by a rail trail now. It was a hop, and it read as debris.
+  { id: 'gateway', x: -7130, y: -600, link: 'trail', satellites: [[60, 430], [300, 430]] },
 
   /* ---- THE MIGHTY J SON'S KEEP: the villain's home at the world's edge ---- */
   // Placed so its gap measures well past one bare drift ring: nobody reaches
@@ -223,7 +221,7 @@ export const LANDMARKS: readonly Landmark[] = [
   { id: 'privacy', kind: 'internal', path: '/privacy.html', labelKey: 'navigation.sidebar.privacy_policy', category: 'info', icon: 'doc', place: { in: 'cluster', cluster: 'records', angleDeg: 55, dist: 470 } },
   { id: 'terms', kind: 'internal', path: '/tos.html', labelKey: 'navigation.sidebar.terms_of_service', category: 'info', icon: 'doc', place: { in: 'cluster', cluster: 'records', angleDeg: 235, dist: 470 } },
   // Launch (walled off for now).
-  { id: 'our_dapps', kind: 'external', path: 'https://hive.io/eco/', labelKey: 'navigation.main_nav_bar.out_dapps', category: 'dapp', icon: 'launchpad', place: { in: 'cluster', cluster: 'launch', angleDeg: 60, dist: 700 } },
+  { id: 'our_dapps', kind: 'external', path: 'https://hive.io/eco/', labelKey: 'navigation.main_nav_bar.out_dapps', category: 'dapp', icon: 'launchpad', place: { in: 'cluster', cluster: 'launch', angleDeg: 60, dist: 700 }, big: true },
   { id: 'hive_dapps', kind: 'external', path: 'https://hivedapps.com/', labelKey: 'navigation.explore_nav.hive_dapps', category: 'dapp', icon: 'spaceship', place: { in: 'cluster', cluster: 'launch', angleDeg: 180, dist: 470 } },
   // The gateway (walled off): a lone door in the dark.
   { id: 'sign_up', kind: 'external', path: 'https://signup.hive.io/', labelKey: 'navigation.main_nav_bar.sign_up', category: 'social', icon: 'door', place: { in: 'cluster', cluster: 'gateway', angleDeg: 180, dist: 500 } },
@@ -231,6 +229,22 @@ export const LANDMARKS: readonly Landmark[] = [
   // His link leads to the block explorer: the one place you can stare at the
   // raw JSON he hoards. BIG, so the silhouette is visible from the far coast.
   { id: 'json_keep', kind: 'explorer', path: '/', labelKey: 'hive_frontend_universe.landmarks.json_keep', category: 'dapp', icon: 'jsonboss', place: { in: 'cluster', cluster: 'json_keep', angleDeg: 30, dist: 520 }, big: true }
+];
+
+/**
+ * THE STARSHIP'S PASSENGER LIST: the dApps of the Hive universe, offered as
+ * links when a player visits the launch cluster. peakd and 3speak and friends
+ * answered 200 to a live audit; ecency and inleo answer 403 to curl (bot
+ * guards) but are canonical live frontends. Names are proper nouns.
+ */
+export const DAPP_DIRECTORY: readonly { name: string; url: string }[] = [
+  { name: 'PeakD', url: 'https://peakd.com' },
+  { name: 'Ecency', url: 'https://ecency.com' },
+  { name: 'InLeo', url: 'https://inleo.io' },
+  { name: '3Speak', url: 'https://3speak.tv' },
+  { name: 'Actifit', url: 'https://actifit.io' },
+  { name: 'TribalDex', url: 'https://tribaldex.com' },
+  { name: 'Hive.io', url: 'https://hive.io' }
 ];
 
 /**
@@ -356,58 +370,20 @@ export function witnessPosts(count: number): WitnessPost[] {
 /* --------------------------- the communities --------------------------- */
 
 /**
- * Community bubbles float off the DIAMOND's western coast, the busiest and
- * roomiest shore. Rays are cast from this interior origin rather than the
- * world origin, which now sits out in the channel between landmasses.
+ * Ten fixed community moorings, hand-placed in the dark water AROUND all
+ * three landmasses instead of stacked down one crowded arc off the west
+ * coast. Each hugs a coast closely enough for the world builder to sling a
+ * rail spoke to it. Move a community by editing its line.
  */
-export const COMMUNITY_ORIGIN = { x: -3000, y: 100, land: 0 } as const;
-
-/**
- * Ten fixed slots sweeping the diamond's whole northern, western and southern
- * coast. The arc was 128 to 244 degrees, which stacked all ten communities
- * down one short stretch of shore; at 96 to 292 they get most of the coastline
- * and stop crowding each other.
- */
-export const COMMUNITY_ARC = { startDeg: 96, endDeg: 292, slots: 10 } as const;
-
-export interface CommunitySlot {
-  slot: number;
-  angleDeg: number;
-  /**
-   * Per-slot multiplier on the coastal offset. Staggering how far out each
-   * bubble floats spreads them in depth as well as around the arc, so they
-   * read as a scattered archipelago rather than a string of beads.
-   */
-  spread: number;
-}
-
-/** Fixed stagger pattern, so the archipelago is identical for everyone. */
-const SPREAD_PATTERN = [1, 1.62, 0.82, 1.34, 1.05, 1.78, 0.9, 1.45, 1.16, 1.9] as const;
-
-export function communitySlots(): CommunitySlot[] {
-  const { startDeg, endDeg, slots } = COMMUNITY_ARC;
-  const step = (endDeg - startDeg) / (slots - 1);
-  return Array.from({ length: slots }, (_, i) => ({
-    slot: i,
-    angleDeg: startDeg + i * step,
-    spread: SPREAD_PATTERN[i % SPREAD_PATTERN.length]
-  }));
-}
-
-/**
- * Distance from the community origin to the diamond's coast along a ray
- * (screen angle degrees, y grows downward). Marched, so it respects the
- * ragged noise.
- */
-export function coastDistanceAt(angleDeg: number): number {
-  return coastDistanceFrom(COMMUNITY_ORIGIN.x, COMMUNITY_ORIGIN.y, angleDeg, COMMUNITY_ORIGIN.land);
-}
-
-/** Position of an angle at a radius from the community origin, world px. */
-export function rimPosition(angleDeg: number, radius: number): { x: number; y: number } {
-  const rad = (angleDeg * Math.PI) / 180;
-  return {
-    x: COMMUNITY_ORIGIN.x + Math.cos(rad) * radius,
-    y: COMMUNITY_ORIGIN.y - Math.sin(rad) * radius
-  };
-}
+export const COMMUNITY_SPOTS: readonly { slot: number; x: number; y: number }[] = [
+  { slot: 0, x: -5600, y: 300 }, // west of the diamond
+  { slot: 1, x: -4400, y: -3500 }, // north-west
+  { slot: 2, x: -2000, y: -4400 }, // north of the diamond
+  { slot: 3, x: 1500, y: -4700 }, // north of the centre blade
+  { slot: 4, x: 3900, y: -3800 }, // north-east
+  { slot: 5, x: 5900, y: 500 }, // east of the east blade
+  { slot: 6, x: 5200, y: 3400 }, // south-east
+  { slot: 7, x: 900, y: 5200 }, // south of the centre blade
+  { slot: 8, x: -1800, y: 4400 }, // south of the diamond
+  { slot: 9, x: -4700, y: 3200 } // south-west
+];

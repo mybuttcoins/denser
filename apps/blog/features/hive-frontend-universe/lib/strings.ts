@@ -3,7 +3,7 @@
  *
  * NOTE: this feature is not yet wired into the locale files (that edit is
  * deliberately deferred until the ship-location decision is made). To keep all
- * user-visible text in ONE spot so it moves cleanly to `t('…')` keys later,
+ * user-visible text in ONE spot so it moves cleanly to translation keys later,
  * every string lives here rather than being inlined across components. This is
  * a temporary shape, not a replacement for i18n.
  */

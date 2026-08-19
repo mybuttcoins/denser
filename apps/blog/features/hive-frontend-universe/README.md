@@ -131,6 +131,33 @@ keep them; several are load-bearing for future multiplayer.
   localStorage-with-TTL helper. Everything else is canvas + fetch. The React
   shell (`canvas-map.tsx`, `card/`, `hooks/`) is the Denser-specific part.
 
+## The creatures and the lore
+
+Every creature has a name, a nature and a reason to exist. The fiction is
+thin on purpose: each one personifies something a real Hive user actually
+meets, so the game doubles as a warning label.
+
+| Name | Kind | Count | Nature | What it does |
+|------|------|-------|--------|--------------|
+| Socko | sock puppet | 14 | neutral | A fake account with button eyes. Wanders, blocks nothing, takes nothing. The crowd the villain hides behind. |
+| Blahgart | noise blob | 16 | neutral | Babbles endlessly. Harmless, everywhere, ignorable, exactly like the noise it stands for. |
+| Sly Grin | scammer | 8 | hostile | Golden head, black domino mask, gaucho hat. Snatches 3 carried tokens and dashes for a troll hole. Pounce on it within its getaway to take them back. |
+| Drainiac | extractor | 9 | hostile | Half again bigger than anything else, four sucker snouts. Latches on and drains carried tokens at 2.4/s into a pouch of 4, then hauls the pouch home. Jump to break the latch. |
+| Copypasta | spammer | 11 | neutral | Repeats itself forever. Set dressing today, a candidate for a third thief later. |
+
+All hostiles serve **the Mighty J SON**, controller of the sock puppets and
+bots, who hoards stolen tokens in his keep at the far edge of the world. The
+keep sits deliberately beyond every jump: only a bug that has compiled all 21
+oxygen helmets (one per consensus witness) can cross the last gap. Troll
+holes are his supply lines; whatever a thief drops down one is his.
+
+Rides are the friendly half of the same idea. One full rotation on the DHF
+ferris wheel earns a breath of **spare air** (a whole extra ring on one jump,
+then spent). Drifting against a witness citadel catches the light beam up the
+tower to meet the witness at the crown. Both are cosmetic transports: the
+player's edge-and-fraction position is never touched mid-ride, which is the
+invariant that keeps future multiplayer cheap.
+
 ## Verification
 
 The world's invariants can be checked headlessly (the `lib/` and world-building

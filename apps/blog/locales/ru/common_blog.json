@@ -796,7 +796,8 @@
       "open": "Открыть",
       "skip": "Пропустить",
       "nothing_here": "Здесь пока ничего нет. Это место откроется позже.",
-      "real_games": "Настоящие игры на Hive"
+      "real_games": "Настоящие игры на Hive",
+      "dapps": "dApps вселенной Hive"
     },
     "landmarks": {
       "search": "Поиск",
@@ -820,6 +821,13 @@
     "worlds": {
       "dhf_fun_park": "DHF Fun Park",
       "witty_world": "Witty World"
+    },
+    "critters": {
+      "sock": "Socko",
+      "blah": "Blahgart",
+      "scammer": "Sly Grin",
+      "extractor": "Drainiac",
+      "spammer": "Copypasta"
     }
   }
 }

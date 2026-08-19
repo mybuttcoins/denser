@@ -160,6 +160,14 @@ const WITNESS_ENERGY = [
 /** Monospace stack for the few glyphs drawn inside icons. */
 const ICON_MONO = 'ui-monospace, SFMono-Regular, Menlo, monospace';
 
+/**
+ * How fast the DHF ferris wheel turns, radians per second. Exported because
+ * the RIDE in canvas-map.tsx must move the bug with the drawn gondola, so the
+ * drawing and the ride share this one number. 0.45 makes a full rotation (the
+ * ride that earns a breath of air) take about 14 seconds.
+ */
+export const FERRIS_SPIN = 0.45;
+
 /** Fairground colours for the DHF Fun Park gondolas. */
 const GONDOLA_HEX = ['#ff4d6d', '#ffd75e', '#48d17a', '#3fb6ff', '#ff9d4d', '#c77dff'];
 
@@ -314,10 +322,11 @@ export function drawIcon(
       break;
     case 'doc':
     case 'docq': {
-      // Small paper with a folded corner; clearly minor.
-      const w = s * 0.85;
-      const h = s * 1.1;
-      const f = s * 0.28;
+      // A chunky sticker paper: white fill, coloured fold, fat outline. The
+      // old thin outline read as detached wireframe next to the painted world.
+      const w = s * 0.95;
+      const h = s * 1.2;
+      const f = s * 0.32;
       ctx.beginPath();
       ctx.moveTo(x - w / 2, y - h / 2);
       ctx.lineTo(x + w / 2 - f, y - h / 2);
@@ -325,12 +334,22 @@ export function drawIcon(
       ctx.lineTo(x + w / 2, y + h / 2);
       ctx.lineTo(x - w / 2, y + h / 2);
       ctx.closePath();
+      ctx.fillStyle = '#f5f2e8';
+      ctx.fill();
+      ctx.strokeStyle = STICKER_OUTLINE;
+      ctx.lineWidth = Math.max(2.5, s * 0.14);
       ctx.stroke();
       ctx.beginPath();
       ctx.moveTo(x + w / 2 - f, y - h / 2);
       ctx.lineTo(x + w / 2 - f, y - h / 2 + f);
       ctx.lineTo(x + w / 2, y - h / 2 + f);
+      ctx.closePath();
+      ctx.fillStyle = col;
+      ctx.fill();
       ctx.stroke();
+      ctx.strokeStyle = col;
+      ctx.fillStyle = col;
+      ctx.lineWidth = Math.max(2, s * 0.1);
       if (key === 'docq') {
         ctx.font = `700 ${s * 0.8}px ui-monospace, monospace`;
         ctx.textAlign = 'center';
@@ -479,19 +498,41 @@ export function drawIcon(
       }
       break;
     }
-    case 'door':
-      ctx.strokeRect(x - s * 0.55, y - s * 0.85, s * 1.1, s * 1.7);
+    case 'door': {
+      // THE GATEWAY: a glowing arch portal, not a wireframe door. Sign-up is
+      // the way IN to Hive, so it gets warmth: a lit archway, breathing light
+      // inside, and a doormat step, chunky sticker style.
+      const pulseIn = 0.55 + Math.sin(time * 1.8) * 0.45;
+      ctx.lineWidth = Math.max(3, s * 0.16);
+      ctx.strokeStyle = STICKER_OUTLINE;
+      // Arch frame.
+      ctx.fillStyle = '#3fb6ff';
       ctx.beginPath();
-      ctx.arc(x + s * 0.25, y, s * 0.08, 0, 6.283);
+      ctx.moveTo(x - s * 0.75, y + s * 0.9);
+      ctx.lineTo(x - s * 0.75, y - s * 0.2);
+      ctx.arc(x, y - s * 0.2, s * 0.75, Math.PI, 0);
+      ctx.lineTo(x + s * 0.75, y + s * 0.9);
+      ctx.closePath();
       ctx.fill();
-      ctx.beginPath();
-      ctx.moveTo(x - s * 1.05, y);
-      ctx.lineTo(x - s * 0.15, y);
-      ctx.moveTo(x - s * 0.4, y - s * 0.22);
-      ctx.lineTo(x - s * 0.15, y);
-      ctx.lineTo(x - s * 0.4, y + s * 0.22);
       ctx.stroke();
+      // The glow inside: somewhere worth walking into.
+      const gl = ctx.createLinearGradient(x, y - s * 0.6, x, y + s * 0.9);
+      gl.addColorStop(0, 'rgba(255, 244, 200, ' + (0.55 + pulseIn * 0.4).toFixed(3) + ')');
+      gl.addColorStop(1, 'rgba(255, 210, 74, ' + (0.25 + pulseIn * 0.3).toFixed(3) + ')');
+      ctx.fillStyle = gl;
+      ctx.beginPath();
+      ctx.moveTo(x - s * 0.52, y + s * 0.9);
+      ctx.lineTo(x - s * 0.52, y - s * 0.15);
+      ctx.arc(x, y - s * 0.15, s * 0.52, Math.PI, 0);
+      ctx.lineTo(x + s * 0.52, y + s * 0.9);
+      ctx.closePath();
+      ctx.fill();
+      // Doormat step.
+      ctx.fillStyle = '#ff5f7a';
+      ctx.fillRect(x - s * 0.9, y + s * 0.9, s * 1.8, s * 0.22);
+      ctx.strokeRect(x - s * 0.9, y + s * 0.9, s * 1.8, s * 0.22);
       break;
+    }
     case 'hivemark':
       drawHiveMark(ctx, x, y, s * 1.7, col);
       break;
@@ -568,7 +609,7 @@ function drawFerris(
   ctx.lineWidth = lw * 0.9;
   ctx.stroke();
   // Spokes and cars.
-  const rot = time * 0.22;
+  const rot = time * FERRIS_SPIN;
   for (let i = 0; i < 8; i++) {
     const a = rot + (i * 6.283) / 8;
     const cx = x + Math.cos(a) * R;
@@ -654,6 +695,11 @@ function drawTowers(
   }
 }
 
+/**
+ * THE STARSHIP: the dApps of Hive, boarding now. A chunky rocket-liner with a
+ * row of lit portholes, each porthole one of the ecosystem's colours, engine
+ * washing flame below. Its landing card (canvas-map) lists the real dApps.
+ */
 function drawLaunchpad(
   ctx: CanvasRenderingContext2D,
   x: number,
@@ -662,41 +708,64 @@ function drawLaunchpad(
   col: string,
   time: number
 ): void {
-  // Pad, gantry, rocket, pulsing exhaust.
+  const lw = Math.max(4, R * 0.07);
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
+  // Hull.
+  ctx.fillStyle = '#e9eef8';
+  ctx.strokeStyle = STICKER_OUTLINE;
+  ctx.lineWidth = lw;
   ctx.beginPath();
-  ctx.moveTo(x - R, y + R * 0.75);
-  ctx.lineTo(x + R, y + R * 0.75);
+  ctx.moveTo(x, y - R * 1.25);
+  ctx.quadraticCurveTo(x + R * 0.62, y - R * 0.45, x + R * 0.5, y + R * 0.62);
+  ctx.lineTo(x - R * 0.5, y + R * 0.62);
+  ctx.quadraticCurveTo(x - R * 0.62, y - R * 0.45, x, y - R * 1.25);
+  ctx.closePath();
+  ctx.fill();
   ctx.stroke();
-  ctx.strokeRect(x - R * 0.85, y - R * 0.9, R * 0.22, R * 1.65);
+  // Nose cone.
+  ctx.fillStyle = '#e3123a';
   ctx.beginPath();
-  for (let i = 0; i < 3; i++) {
-    ctx.moveTo(x - R * 0.63, y - R * 0.6 + i * R * 0.45);
-    ctx.lineTo(x - R * 0.25, y - R * 0.5 + i * R * 0.45);
+  ctx.moveTo(x, y - R * 1.25);
+  ctx.quadraticCurveTo(x + R * 0.4, y - R * 0.72, x + R * 0.44, y - R * 0.52);
+  ctx.lineTo(x - R * 0.44, y - R * 0.52);
+  ctx.quadraticCurveTo(x - R * 0.4, y - R * 0.72, x, y - R * 1.25);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  // Fins.
+  for (const side of [-1, 1]) {
+    ctx.fillStyle = '#e3123a';
+    ctx.beginPath();
+    ctx.moveTo(side * R * 0.5 + x, y + R * 0.05);
+    ctx.lineTo(side * R * 0.95 + x, y + R * 0.72);
+    ctx.lineTo(side * R * 0.5 + x, y + R * 0.62);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
   }
-  ctx.stroke();
-  // rocket
-  ctx.beginPath();
-  ctx.moveTo(x + R * 0.05, y - R * 1.05);
-  ctx.quadraticCurveTo(x + R * 0.38, y - R * 0.5, x + R * 0.3, y + R * 0.5);
-  ctx.lineTo(x - R * 0.2, y + R * 0.5);
-  ctx.quadraticCurveTo(x - R * 0.28, y - R * 0.5, x + R * 0.05, y - R * 1.05);
-  ctx.stroke();
-  ctx.beginPath();
-  ctx.arc(x + R * 0.05, y - R * 0.35, R * 0.11, 0, 6.283);
-  ctx.stroke();
-  ctx.beginPath();
-  ctx.moveTo(x - R * 0.2, y + R * 0.5);
-  ctx.lineTo(x - R * 0.42, y + R * 0.75);
-  ctx.moveTo(x + R * 0.3, y + R * 0.5);
-  ctx.lineTo(x + R * 0.5, y + R * 0.75);
-  ctx.stroke();
+  // Portholes: the dApps aboard, each in its own ecosystem colour, lit in a
+  // slow chase so the ship reads as inhabited.
+  const PORT = ['#5EE9D5', '#FFC24D', '#B79CFF', '#5BE39C', '#FF90AE'];
+  for (let k = 0; k < PORT.length; k++) {
+    const py = y - R * 0.32 + k * R * 0.22;
+    const lit = (Math.floor(time * 1.5) % PORT.length) === k;
+    ctx.beginPath();
+    ctx.arc(x, py, R * (lit ? 0.11 : 0.085), 0, 6.283);
+    ctx.fillStyle = PORT[k];
+    ctx.globalAlpha = lit ? 1 : 0.75;
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.lineWidth = lw * 0.6;
+    ctx.stroke();
+  }
+  // Engine flame, licking.
   const f = 0.5 + Math.sin(time * 8) * 0.5;
-  ctx.globalAlpha = 0.35 + f * 0.5;
   ctx.fillStyle = '#FFC24D';
+  ctx.globalAlpha = 0.5 + f * 0.5;
   ctx.beginPath();
-  ctx.moveTo(x - R * 0.08, y + R * 0.52);
-  ctx.lineTo(x + R * 0.05, y + R * (0.68 + f * 0.1));
-  ctx.lineTo(x + R * 0.18, y + R * 0.52);
+  ctx.moveTo(x - R * 0.3, y + R * 0.66);
+  ctx.quadraticCurveTo(x, y + R * (1.1 + f * 0.25), x + R * 0.3, y + R * 0.66);
   ctx.closePath();
   ctx.fill();
   ctx.globalAlpha = 1;
@@ -822,14 +891,6 @@ function roundRect(
   ctx.closePath();
 }
 
-/**
- * THE ARCADE: a classic arcade cabinet seen straight on, one of the big five.
- *
- * Rounded marquee header with a colour stripe on top; below it a screen
- * showing a tiny wavy landscape in bright sky blue and green; below the screen
- * a control deck with two red-ball joysticks and rows of small yellow and blue
- * buttons. Chunky black outlines, flat bright fills, sparkles floating around.
- */
 function drawArcade(
   ctx: CanvasRenderingContext2D,
   x: number,

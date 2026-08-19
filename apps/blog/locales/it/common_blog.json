@@ -790,7 +790,8 @@
       "open": "Apri",
       "skip": "Salta",
       "nothing_here": "Qui non c’è ancora nulla. Questo posto aprirà più avanti.",
-      "real_games": "Giochi reali su Hive"
+      "real_games": "Giochi reali su Hive",
+      "dapps": "dApp dell universo Hive"
     },
     "landmarks": {
       "search": "Cerca",
@@ -814,6 +815,13 @@
     "worlds": {
       "dhf_fun_park": "DHF Fun Park",
       "witty_world": "Witty World"
+    },
+    "critters": {
+      "sock": "Socko",
+      "blah": "Blahgart",
+      "scammer": "Sly Grin",
+      "extractor": "Drainiac",
+      "spammer": "Copypasta"
     }
   }
 }

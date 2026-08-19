@@ -225,6 +225,8 @@ export function drawCritters(
 function drawSock(ctx: CanvasRenderingContext2D, x: number, y: number, face: number): void {
   ctx.save();
   ctx.translate(x, y);
+  // Grown 1.35x: at the old size players could not tell what it was.
+  ctx.scale(1.35, 1.35);
   sticker(ctx, 3.5);
   // Body: a sock-ish rounded blob (an avatar bubble gone wrong).
   ctx.beginPath();
@@ -279,6 +281,8 @@ function drawSock(ctx: CanvasRenderingContext2D, x: number, y: number, face: num
 function drawBlah(ctx: CanvasRenderingContext2D, x: number, y: number, face: number, time: number): void {
   ctx.save();
   ctx.translate(x, y);
+  // Grown 1.35x: at the old size players could not tell what it was.
+  ctx.scale(1.35, 1.35);
   sticker(ctx, 3.2);
   // Noise ripples off the open mouth.
   const rip = (time * 1.7) % 1;
@@ -521,6 +525,8 @@ function drawPaper(ctx: CanvasRenderingContext2D, x: number, y: number, alpha: n
 function drawSpammer(ctx: CanvasRenderingContext2D, x: number, y: number, face: number): void {
   ctx.save();
   ctx.translate(x, y);
+  // Grown 1.35x: at the old size players could not tell what it was.
+  ctx.scale(1.35, 1.35);
   sticker(ctx, 3.5);
   // Body.
   ctx.beginPath();

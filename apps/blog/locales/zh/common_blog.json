@@ -790,7 +790,8 @@
       "open": "打开",
       "skip": "跳过",
       "nothing_here": "这里还没有内容,稍后开放。",
-      "real_games": "Hive 上的真实游戏"
+      "real_games": "Hive 上的真实游戏",
+      "dapps": "Hive 宇宙的应用"
     },
     "landmarks": {
       "search": "搜索",
@@ -814,6 +815,13 @@
     "worlds": {
       "dhf_fun_park": "DHF Fun Park",
       "witty_world": "Witty World"
+    },
+    "critters": {
+      "sock": "Socko",
+      "blah": "Blahgart",
+      "scammer": "Sly Grin",
+      "extractor": "Drainiac",
+      "spammer": "Copypasta"
     }
   }
 }
