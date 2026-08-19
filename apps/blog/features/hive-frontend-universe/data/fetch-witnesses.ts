@@ -24,9 +24,14 @@ export interface TopWitness {
   missed: number;
   /** Reported node version, for the tower's little version tag. */
   version: string;
+  /** Last block this witness confirmed, for the visit card. */
+  lastBlock: number;
+  /** The witness's own declared page, when they declared one. */
+  url: string;
 }
 
-const CACHE_KEY = 'hfu-witnesses';
+/** v2: the beam-visit card added lastBlock and url to the cached shape. */
+const CACHE_KEY = 'hfu-witnesses-v2';
 /** The consensus set is exactly 21 accounts. */
 export const WITNESS_COUNT = 21;
 
@@ -34,6 +39,8 @@ interface RawWitness {
   owner: string;
   total_missed: number;
   running_version: string;
+  last_confirmed_block_num: number;
+  url: string;
 }
 
 export async function fetchTopWitnesses(
@@ -60,7 +67,9 @@ export async function fetchTopWitnesses(
     name: r.owner,
     rank: i + 1,
     missed: r.total_missed ?? 0,
-    version: r.running_version ?? ''
+    version: r.running_version ?? '',
+    lastBlock: r.last_confirmed_block_num ?? 0,
+    url: r.url ?? ''
   }));
 
   setStorageItem(CACHE_KEY, top, StorageTTL.CACHE);

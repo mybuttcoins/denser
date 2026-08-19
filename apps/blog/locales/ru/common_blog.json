@@ -806,7 +806,8 @@
       "wallet": "Кошелёк",
       "arcade": "Аркада",
       "healthchecker": "Healthchecker",
-      "json_keep": "The Mighty J SON"
+      "json_keep": "Emperor J SON",
+      "mount_socko": "Mount Socko"
     },
     "hud": {
       "houses": "ДОМА",
@@ -828,6 +829,11 @@
       "scammer": "Sly Grin",
       "extractor": "Drainiac",
       "spammer": "Copypasta"
+    },
+    "witness": {
+      "version": "Версия",
+      "last_block": "Последний блок",
+      "missed": "Пропущено блоков"
     }
   }
 }

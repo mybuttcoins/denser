@@ -847,7 +847,8 @@
       "wallet": "المحفظة",
       "arcade": "أركيد",
       "healthchecker": "Healthchecker",
-      "json_keep": "The Mighty J SON"
+      "json_keep": "Emperor J SON",
+      "mount_socko": "Mount Socko"
     },
     "hud": {
       "houses": "المنازل",
@@ -869,6 +870,11 @@
       "scammer": "Sly Grin",
       "extractor": "Drainiac",
       "spammer": "Copypasta"
+    },
+    "witness": {
+      "version": "الإصدار",
+      "last_block": "آخر كتلة",
+      "missed": "كتل مفقودة"
     }
   }
 }

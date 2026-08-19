@@ -800,7 +800,8 @@
       "wallet": "ウォレット",
       "arcade": "アーケード",
       "healthchecker": "Healthchecker",
-      "json_keep": "The Mighty J SON"
+      "json_keep": "Emperor J SON",
+      "mount_socko": "Mount Socko"
     },
     "hud": {
       "houses": "家",
@@ -822,6 +823,11 @@
       "scammer": "Sly Grin",
       "extractor": "Drainiac",
       "spammer": "Copypasta"
+    },
+    "witness": {
+      "version": "バージョン",
+      "last_block": "最新ブロック",
+      "missed": "失敗ブロック"
     }
   }
 }

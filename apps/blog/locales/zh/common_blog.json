@@ -800,7 +800,8 @@
       "wallet": "钱包",
       "arcade": "街机厅",
       "healthchecker": "Healthchecker",
-      "json_keep": "The Mighty J SON"
+      "json_keep": "Emperor J SON",
+      "mount_socko": "Mount Socko"
     },
     "hud": {
       "houses": "房屋",
@@ -822,6 +823,11 @@
       "scammer": "Sly Grin",
       "extractor": "Drainiac",
       "spammer": "Copypasta"
+    },
+    "witness": {
+      "version": "版本",
+      "last_block": "最新区块",
+      "missed": "错过区块"
     }
   }
 }

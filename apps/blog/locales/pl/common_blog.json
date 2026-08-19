@@ -805,7 +805,8 @@
       "wallet": "Portfel",
       "arcade": "Salon gier",
       "healthchecker": "Healthchecker",
-      "json_keep": "The Mighty J SON"
+      "json_keep": "Emperor J SON",
+      "mount_socko": "Mount Socko"
     },
     "hud": {
       "houses": "DOMY",
@@ -827,6 +828,11 @@
       "scammer": "Sly Grin",
       "extractor": "Drainiac",
       "spammer": "Copypasta"
+    },
+    "witness": {
+      "version": "Wersja",
+      "last_block": "Ostatni blok",
+      "missed": "Pominiete bloki"
     }
   }
 }

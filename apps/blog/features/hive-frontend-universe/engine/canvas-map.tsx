@@ -44,6 +44,14 @@ import { buildWorld, type GameWorld } from './world';
 import { createCritters, updateCritters, type CritterState } from './critters';
 import { createCoins, updateCoins, type CoinState } from './coins';
 import { createHelmets, updateHelmets, o2Multiplier, HELMET_TOTAL, type HelmetState } from './helmets';
+import {
+  createHazards,
+  updateHazards,
+  hazardHolds,
+  fightWrap,
+  GOO_SLOW,
+  type HazardState
+} from './hazards';
 import { buildGround } from './ground';
 import { requestAvatar, avatarStats } from './avatars';
 import { getUserAvatarUrl } from '@ui/lib/avatar-utils';
@@ -118,8 +126,13 @@ const Stage = ({ board }: { board: Board }) => {
   const [inCommunity, setInCommunity] = useState(-1);
   /** The thing under the cursor, named in a chip since nothing is lettered. */
   const [hover, setHover] = useState<{ title: string; kind: TargetKind; sx: number; sy: number } | null>(null);
-  /** A clicked witness citadel, which has no world node of its own. */
-  const [clickedWitness, setClickedWitness] = useState<{ title: string; href: string | null } | null>(null);
+  /** A clicked or beam-visited witness citadel, which has no world node. */
+  const [clickedWitness, setClickedWitness] = useState<{
+    title: string;
+    href: string | null;
+    /** Real chain stats, shown after a beam visit reaches the crown. */
+    stats?: { label: string; value: string }[];
+  } | null>(null);
 
   const world: GameWorld = useMemo(
     () => buildWorld(board.windowStart, board.houses.length),
@@ -138,7 +151,8 @@ const Stage = ({ board }: { board: Board }) => {
         casing: '#1a0d05',
         glow: PALETTE.routeGlow,
         core: PALETTE.route,
-        width: 9.2
+        width: 9.2,
+        spark: '#fff3c0'
       },
       {
         edges: byId(DAPPS_LINE_ID),
@@ -146,7 +160,8 @@ const Stage = ({ board }: { board: Board }) => {
         glow: PALETTE.dappsGlow,
         core: PALETTE.dapps,
         width: 6.2,
-        dash: [30, 22]
+        dash: [30, 22],
+        spark: '#e6fcff'
       }
     ];
   }, [routes]);
@@ -197,7 +212,35 @@ const Stage = ({ board }: { board: Board }) => {
   }, [witnesses]);
   useEffect(() => {
     for (const w of witnessVisuals) requestAvatar(w.name);
+    // The dApp station's window logos, eagerly: the station is a big landmark
+    // meant to read from the map, so its faces load like the witnesses' do.
+    for (const d of DAPP_DIRECTORY) {
+      if (d.account) requestAvatar(d.account);
+    }
   }, [witnessVisuals]);
+
+  // Read through a REF inside the frame loop, never the query state: the
+  // loop's closure is created before the witnesses query resolves (the same
+  // trap that once made every community bubble unclickable).
+  const witnessDataRef = useRef(witnesses);
+  witnessDataRef.current = witnesses;
+
+  /**
+   * The witness stats rows for the beam-visit card. Real numbers from the
+   * same get_witnesses_by_vote call that ranks the citadel ring.
+   */
+  const witnessStats = (name: string): { label: string; value: string }[] => {
+    const w = witnessDataRef.current?.find((x) => x.name === name);
+    if (!w) return [];
+    return [
+      { label: t('hive_frontend_universe.witness.version'), value: w.version || '?' },
+      {
+        label: t('hive_frontend_universe.witness.last_block'),
+        value: w.lastBlock ? `#${w.lastBlock.toLocaleString()}` : '?'
+      },
+      { label: t('hive_frontend_universe.witness.missed'), value: String(w.missed) }
+    ];
+  };
 
   // The frame loop lives in an effect keyed on the world; the communities and
   // witnesses queries can resolve later, so the loop reads them through refs.
@@ -223,16 +266,34 @@ const Stage = ({ board }: { board: Board }) => {
   /**
    * The current RIDE: cosmetic transport that never touches the player's
    * edge-plus-fraction state. 'wheel' orbits the DHF ferris (a full rotation
-   * earns a breath of spare air); 'beam' lifts the bug up a witness citadel
-   * and opens the witness's profile panel at the top.
+   * earns a breath of spare air); 'beam' lifts the bug up a witness citadel,
+   * opens the witness's card at the crown, then rides it back DOWN and hands
+   * back the drift with the air topped up. A round trip, never a yank home.
    */
   const rideRef = useRef<
     | { type: 'wheel'; node: number; cx: number; cy: number; startAngle: number }
-    | { type: 'beam'; x: number; baseY: number; topY: number; t: number; title: string; href: string }
+    | {
+        type: 'beam';
+        x: number;
+        baseY: number;
+        topY: number;
+        t: number;
+        /** 1 riding up, -1 riding back down. */
+        dir: 1 | -1;
+        /** Seconds to pause at the crown, meeting the witness. */
+        dwell: number;
+        name: string;
+        title: string;
+        href: string;
+      }
     | null
   >(null);
   /** Re-armed by leaving the wheel, so one visit grants one ride. */
   const wheelArmedRef = useRef(true);
+  /** Seconds before another beam can catch the bug, so visits stay chosen. */
+  const beamCooldownRef = useRef(0);
+  /** The nuisance hazards: goo, wrap, the sock trip. */
+  const hazardsRef = useRef<HazardState | null>(null);
   const atNodeTick = useRef(-1);
   const inCommunityTick = useRef(-1);
   const mKeyDownAt = useRef(0);
@@ -249,6 +310,8 @@ const Stage = ({ board }: { board: Board }) => {
    */
   const hopWithO2 = () => {
     const p = playerRef.current;
+    // A jump while pasta-wrapped tears at the noodles instead of jumping.
+    if (hazardsRef.current && fightWrap(hazardsRef.current)) return;
     jump(p, world.edges, inputRef.current);
     if (p.mode === 'drift') {
       const suit = helmetsRef.current;
@@ -282,6 +345,7 @@ const Stage = ({ board }: { board: Board }) => {
     // Tokens minted from the window's REAL custom_json count.
     coinsRef.current = createCoins(world, board.counts.customJson, board.windowStart);
     helmetsRef.current = createHelmets();
+    hazardsRef.current = createHazards(crittersRef.current.critters.length);
 
     // Spawn just inside the mesh beside the Basecamp landmark.
     const basecampIdx = LANDMARKS.findIndex((lm) => lm.id === 'basecamp');
@@ -626,12 +690,17 @@ const Stage = ({ board }: { board: Board }) => {
       }
     };
 
+    // Where the bug is DRAWN while riding something (null when walking).
+    // The camera follows this, not the parked physics position, so a beam
+    // ride visibly travels up the tower instead of staring at the base.
+    let overlayPos: Vec2 | null = null;
     const camUpdate = (dt: number) => {
       const cam = camRef.current;
       const out = mapHeldRef.current || fullMapRef.current;
       const targetZ = out ? fitZ() : playZ();
-      const tx = out ? 0 : p.x;
-      const ty = out ? 0 : p.y;
+      const follow = overlayPos ?? p;
+      const tx = out ? 0 : follow.x;
+      const ty = out ? 0 : follow.y;
       const k = Math.min(1, dt * 10); // ~90% in a quarter second, both ways
       cam.z += (targetZ - cam.z) * k;
       cam.x += (tx - cam.x) * k;
@@ -647,15 +716,19 @@ const Stage = ({ board }: { board: Board }) => {
 
       readInput();
       if (p.stuck > 0) p.stuck = Math.max(0, p.stuck - dt);
-      // The bug parks while the full travel map is open, and hands itself
-      // over while a beam has it: position state is untouched during the
-      // ride and restored by placeAt when it tops out.
+      const hz = hazardsRef.current;
+      // The bug parks while the full travel map is open, hands itself over
+      // while a beam has it, and is HELD while a sock envelops it or pasta
+      // wraps it. Slime never holds, it just makes everything sticky: the
+      // movement integrator runs on slowed-down time, movement.ts untouched.
       const beamRiding = rideRef.current?.type === 'beam';
-      if (!fullMapRef.current && !beamRiding) {
+      const hazardHeld = hz ? hazardHolds(hz) : false;
+      if (!fullMapRef.current && !beamRiding && !hazardHeld) {
+        const pdt = hz && hz.gooT > 0 ? dt * GOO_SLOW : dt;
         if (p.mode === 'rail') {
-          railUpdate(p, edges, incident, inputRef.current, dt);
+          railUpdate(p, edges, incident, inputRef.current, pdt);
         } else {
-          const res = driftUpdate(p, edges, inputRef.current, dt);
+          const res = driftUpdate(p, edges, inputRef.current, pdt);
           if (res.signalLost) {
             placeAt(p, edges, incident, p.lastNode);
             p.stuck = 1.4;
@@ -669,6 +742,20 @@ const Stage = ({ board }: { board: Board }) => {
       updateTraffic(dt);
       if (flowsRef.current) updateFlows(flowsRef.current, world, flowCfg, p.x, p.y, dt);
       if (crittersRef.current) updateCritters(crittersRef.current, world, dt);
+      if (hz) {
+        updateHazards(hz, p, crittersRef.current, dt);
+        // The sock has closed around the bug: flash-post it to Mount Socko.
+        // Not a death, a DELIVERY; the toll is the walk back.
+        if (hz.tripped) {
+          hz.tripped = false;
+          const sockIdx = LANDMARKS.findIndex((lm) => lm.id === 'mount_socko');
+          const sockNode = world.landmarkNodeByIndex[sockIdx] ?? -1;
+          if (sockNode >= 0) {
+            placeAt(p, edges, incident, sockNode);
+            warpFxRef.current = 1;
+          }
+        }
+      }
       // The HUD is painted on the canvas every frame, so the token counts
       // need no React state to stay current.
       if (coinsRef.current) updateCoins(coinsRef.current, p, crittersRef.current, factories, TROLL_HOLES, dt);
@@ -711,7 +798,8 @@ const Stage = ({ board }: { board: Board }) => {
       }
 
       // A drifting bug that brushes a citadel's base catches the beam up.
-      if (!ride && p.mode === 'drift') {
+      if (beamCooldownRef.current > 0) beamCooldownRef.current -= dt;
+      if (!ride && p.mode === 'drift' && beamCooldownRef.current <= 0) {
         for (const wt of witnessVisualsRef.current) {
           if (Math.hypot(wt.x - p.x, wt.y - p.y) > 260) continue;
           const towerH = 1680 - (wt.rank - 1) * 22;
@@ -721,27 +809,55 @@ const Stage = ({ board }: { board: Board }) => {
             baseY: wt.y,
             topY: wt.y - towerH * 0.87,
             t: 0,
+            dir: 1,
+            dwell: 1.4,
+            name: wt.name,
             title: `${wt.rank}. ${wt.name}`,
             href: profileHref(wt.name)
           };
           break;
         }
       }
+      // The beam is a ROUND TRIP: up to the crown, meet the witness (the
+      // card opens with their real stats), pause, then ride back down and
+      // hand the drift back with the air topped up. The first version
+      // yanked the bug home across the map instead, which read as dying.
       if (rideRef.current?.type === 'beam') {
         const beam = rideRef.current;
-        beam.t += dt / 1.4;
-        if (beam.t >= 1) {
-          // Arrived at the crown: meet the witness, then set down gently on
-          // the last rail node (the same safe return a lost signal uses,
-          // minus the stun).
-          setClickedWitness({ title: beam.title, href: beam.href });
-          placeAt(p, edges, incident, p.lastNode);
-          rideRef.current = null;
+        if (beam.dir === 1 && beam.t >= 1) {
+          if (beam.dwell === 1.4) {
+            setClickedWitness({ title: beam.title, href: beam.href, stats: witnessStats(beam.name) });
+          }
+          beam.dwell -= dt;
+          if (beam.dwell <= 0) beam.dir = -1;
+        } else {
+          beam.t = Math.max(0, Math.min(1, beam.t + (dt / 2.2) * beam.dir));
+          if (beam.dir === -1 && beam.t <= 0) {
+            rideRef.current = null;
+            beamCooldownRef.current = 5;
+            // Fresh air for the trip home: a visit costs nothing but time.
+            if (p.mode === 'drift') {
+              p.fuel = MOVE.DRIFT_TIME * o2Multiplier(helmetsRef.current?.count ?? 0);
+            }
+          }
         }
       }
       if (helmetsRef.current && helmetsRef.current.spareFlash > 0) {
         helmetsRef.current.spareFlash = Math.max(0, helmetsRef.current.spareFlash - dt);
       }
+      overlayPos = (() => {
+        const rd = rideRef.current;
+        if (!rd) return null;
+        if (rd.type === 'wheel') {
+          const a = (ts / 1000) * FERRIS_SPIN;
+          return {
+            x: rd.cx + Math.cos(a) * wheelRadius,
+            y: rd.cy + Math.sin(a) * wheelRadius + wheelRadius * 0.17
+          };
+        }
+        const ease = rd.t * rd.t * (3 - 2 * rd.t);
+        return { x: rd.x, y: rd.baseY + (rd.topY - rd.baseY) * ease };
+      })();
 
       // YOU ARE HERE: which community bubble the bug is standing in. Bubbles
       // overlap, so the SMALLEST containing one wins, which is the innermost.
@@ -791,16 +907,8 @@ const Stage = ({ board }: { board: Board }) => {
         critters: crittersRef.current,
         coins: coinsRef.current,
         helmetState: helmetsRef.current,
-        rideOverlay: (() => {
-          const rd = rideRef.current;
-          if (!rd) return null;
-          if (rd.type === 'wheel') {
-            const a = (ts / 1000) * FERRIS_SPIN;
-            return { x: rd.cx + Math.cos(a) * wheelRadius, y: rd.cy + Math.sin(a) * wheelRadius + wheelRadius * 0.17 };
-          }
-          const ease = rd.t * rd.t * (3 - 2 * rd.t);
-          return { x: rd.x, y: rd.baseY + (rd.topY - rd.baseY) * ease };
-        })(),
+        rideOverlay: overlayPos,
+        hazards: hazardsRef.current,
         ground,
         activeCommunity: inCommunityTick.current,
         player: p,
@@ -945,6 +1053,7 @@ const Stage = ({ board }: { board: Board }) => {
           kind={clickedWitness.href ? 'external' : 'none'}
           path={clickedWitness.href ?? ''}
           accent="amber"
+          stats={clickedWitness.stats}
           onSkip={() => setClickedWitness(null)}
         />
       ) : null}

@@ -800,7 +800,8 @@
       "wallet": "Cartera",
       "arcade": "Arcade",
       "healthchecker": "Healthchecker",
-      "json_keep": "The Mighty J SON"
+      "json_keep": "Emperor J SON",
+      "mount_socko": "Mount Socko"
     },
     "hud": {
       "houses": "CASAS",
@@ -822,6 +823,11 @@
       "scammer": "Sly Grin",
       "extractor": "Drainiac",
       "spammer": "Copypasta"
+    },
+    "witness": {
+      "version": "Version",
+      "last_block": "Ultimo bloque",
+      "missed": "Bloques perdidos"
     }
   }
 }

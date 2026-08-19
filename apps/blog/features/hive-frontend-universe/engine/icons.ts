@@ -211,6 +211,9 @@ export function drawIcon(
     case 'jsonboss':
       drawJsonBoss(ctx, x, y, s * 1.5, time);
       break;
+    case 'sockmount':
+      drawSockMount(ctx, x, y, s * 2.2, time);
+      break;
     case 'spaceship': {
       // Small rocket in flight.
       ctx.beginPath();
@@ -696,9 +699,22 @@ function drawTowers(
 }
 
 /**
- * THE STARSHIP: the dApps of Hive, boarding now. A chunky rocket-liner with a
- * row of lit portholes, each porthole one of the ecosystem's colours, engine
- * washing flame below. Its landing card (canvas-map) lists the real dApps.
+ * Window slots on the dApp station, in station-radius units. Exported so the
+ * renderer can paint REAL dApp logos (their Hive account avatars) into the
+ * same holes this function draws: one list, two consumers, never apart.
+ */
+export const DAPP_WINDOWS: readonly { dx: number; dy: number; r: number }[] = [
+  { dx: -0.62, dy: -0.05, r: 0.21 },
+  { dx: -0.22, dy: -0.18, r: 0.23 },
+  { dx: 0.22, dy: -0.18, r: 0.23 },
+  { dx: 0.62, dy: -0.05, r: 0.21 }
+];
+
+/**
+ * THE dAPP STATION: a round orbital base, one of the big landmarks. A wide
+ * saucer hull with a glass dome, a ring of round windows along the rim (the
+ * renderer fills them with real dApp logos once their avatars load), landing
+ * legs and a blinking beacon. Its landing card lists the real dApps.
  */
 function drawLaunchpad(
   ctx: CanvasRenderingContext2D,
@@ -708,65 +724,78 @@ function drawLaunchpad(
   col: string,
   time: number
 ): void {
-  const lw = Math.max(4, R * 0.07);
+  const lw = Math.max(4, R * 0.06);
   ctx.lineJoin = 'round';
   ctx.lineCap = 'round';
-  // Hull.
-  ctx.fillStyle = '#e9eef8';
   ctx.strokeStyle = STICKER_OUTLINE;
   ctx.lineWidth = lw;
-  ctx.beginPath();
-  ctx.moveTo(x, y - R * 1.25);
-  ctx.quadraticCurveTo(x + R * 0.62, y - R * 0.45, x + R * 0.5, y + R * 0.62);
-  ctx.lineTo(x - R * 0.5, y + R * 0.62);
-  ctx.quadraticCurveTo(x - R * 0.62, y - R * 0.45, x, y - R * 1.25);
-  ctx.closePath();
-  ctx.fill();
-  ctx.stroke();
-  // Nose cone.
-  ctx.fillStyle = '#e3123a';
-  ctx.beginPath();
-  ctx.moveTo(x, y - R * 1.25);
-  ctx.quadraticCurveTo(x + R * 0.4, y - R * 0.72, x + R * 0.44, y - R * 0.52);
-  ctx.lineTo(x - R * 0.44, y - R * 0.52);
-  ctx.quadraticCurveTo(x - R * 0.4, y - R * 0.72, x, y - R * 1.25);
-  ctx.closePath();
-  ctx.fill();
-  ctx.stroke();
-  // Fins.
+  // Landing legs first, so the saucer sits over them.
   for (const side of [-1, 1]) {
-    ctx.fillStyle = '#e3123a';
     ctx.beginPath();
-    ctx.moveTo(side * R * 0.5 + x, y + R * 0.05);
-    ctx.lineTo(side * R * 0.95 + x, y + R * 0.72);
-    ctx.lineTo(side * R * 0.5 + x, y + R * 0.62);
-    ctx.closePath();
+    ctx.moveTo(x + side * R * 0.55, y + R * 0.28);
+    ctx.lineTo(x + side * R * 0.8, y + R * 0.72);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.ellipse(x + side * R * 0.8, y + R * 0.74, R * 0.14, R * 0.06, 0, 0, 6.283);
+    ctx.fillStyle = '#aab6c8';
     ctx.fill();
     ctx.stroke();
   }
-  // Portholes: the dApps aboard, each in its own ecosystem colour, lit in a
-  // slow chase so the ship reads as inhabited.
-  const PORT = ['#5EE9D5', '#FFC24D', '#B79CFF', '#5BE39C', '#FF90AE'];
-  for (let k = 0; k < PORT.length; k++) {
-    const py = y - R * 0.32 + k * R * 0.22;
-    const lit = (Math.floor(time * 1.5) % PORT.length) === k;
+  // The saucer: a fat rounded disc.
+  ctx.beginPath();
+  ctx.ellipse(x, y, R * 1.02, R * 0.5, 0, 0, 6.283);
+  ctx.fillStyle = '#e9eef8';
+  ctx.fill();
+  ctx.stroke();
+  // A red rim band, the station's livery.
+  ctx.save();
+  ctx.beginPath();
+  ctx.ellipse(x, y, R * 1.02, R * 0.5, 0, 0, 6.283);
+  ctx.clip();
+  ctx.fillStyle = '#e3123a';
+  ctx.fillRect(x - R * 1.1, y + R * 0.22, R * 2.2, R * 0.3);
+  ctx.restore();
+  ctx.beginPath();
+  ctx.ellipse(x, y, R * 1.02, R * 0.5, 0, 0, 6.283);
+  ctx.stroke();
+  // The window holes. The renderer paints real logos into these same slots
+  // (DAPP_WINDOWS above); until an avatar arrives, each glows in its own
+  // ecosystem colour with a slow lighthouse chase.
+  const PORT = ['#5EE9D5', '#FFC24D', '#B79CFF', '#5BE39C'];
+  for (let k = 0; k < DAPP_WINDOWS.length; k++) {
+    const w = DAPP_WINDOWS[k];
+    const lit = (Math.floor(time * 1.2) % DAPP_WINDOWS.length) === k;
     ctx.beginPath();
-    ctx.arc(x, py, R * (lit ? 0.11 : 0.085), 0, 6.283);
-    ctx.fillStyle = PORT[k];
-    ctx.globalAlpha = lit ? 1 : 0.75;
+    ctx.arc(x + w.dx * R, y + w.dy * R, w.r * R, 0, 6.283);
+    ctx.fillStyle = PORT[k % PORT.length];
+    ctx.globalAlpha = lit ? 1 : 0.7;
     ctx.fill();
     ctx.globalAlpha = 1;
-    ctx.lineWidth = lw * 0.6;
+    ctx.lineWidth = lw * 0.7;
     ctx.stroke();
   }
-  // Engine flame, licking.
-  const f = 0.5 + Math.sin(time * 8) * 0.5;
-  ctx.fillStyle = '#FFC24D';
-  ctx.globalAlpha = 0.5 + f * 0.5;
+  // The glass dome up top, with a hint of the crew quarters inside.
   ctx.beginPath();
-  ctx.moveTo(x - R * 0.3, y + R * 0.66);
-  ctx.quadraticCurveTo(x, y + R * (1.1 + f * 0.25), x + R * 0.3, y + R * 0.66);
+  ctx.arc(x, y - R * 0.38, R * 0.42, Math.PI, 0);
   ctx.closePath();
+  ctx.fillStyle = 'rgba(155, 232, 255, 0.4)';
+  ctx.fill();
+  ctx.lineWidth = lw;
+  ctx.stroke();
+  // Beacon, blinking on the dome.
+  const blink = 0.5 + Math.sin(time * 5) * 0.5;
+  ctx.beginPath();
+  ctx.arc(x, y - R * 0.86, R * 0.07, 0, 6.283);
+  ctx.fillStyle = '#ff5f7a';
+  ctx.globalAlpha = 0.3 + blink * 0.7;
+  ctx.fill();
+  ctx.globalAlpha = 1;
+  // Soft thruster glow beneath: it hovers as much as it stands.
+  const f = 0.5 + Math.sin(time * 3.2) * 0.5;
+  ctx.fillStyle = col;
+  ctx.globalAlpha = 0.12 + f * 0.12;
+  ctx.beginPath();
+  ctx.ellipse(x, y + R * 0.62, R * 0.7, R * 0.16, 0, 0, 6.283);
   ctx.fill();
   ctx.globalAlpha = 1;
 }
@@ -1517,23 +1546,82 @@ function drawJsonBoss(
   ctx.lineJoin = 'round';
   ctx.lineCap = 'round';
 
-  // The keep: a jagged dark crag he squats on.
-  ctx.fillStyle = '#241333';
+  // A cold dark aura first, so the whole corner of the map feels wrong
+  // before the castle even resolves. The one place with no warm pool.
+  const aura = ctx.createRadialGradient(0, 0, R * 0.4, 0, 0, R * 2.6);
+  aura.addColorStop(0, 'rgba(30, 8, 40, 0.55)');
+  aura.addColorStop(1, 'rgba(10, 4, 18, 0)');
+  ctx.fillStyle = aura;
+  ctx.beginPath();
+  ctx.arc(0, 0, R * 2.6, 0, 6.283);
+  ctx.fill();
+
+  // THE SHARD CASTLE: a crown of jagged black obsidian shards behind the
+  // Emperor, each with a cold violet rim and a burning red slit window. Half
+  // fortress, half surfaced submarine: the hull swells out of the void-sea.
+  const SHARDS: readonly [number, number, number][] = [
+    [-1.45, 0.55, 0.34],
+    [-0.95, 1.15, 0.42],
+    [-0.4, 1.7, 0.5],
+    [0.25, 2.05, 0.55],
+    [0.85, 1.35, 0.44],
+    [1.4, 0.7, 0.36]
+  ];
+  for (const [sx, h, w] of SHARDS) {
+    ctx.beginPath();
+    ctx.moveTo(R * (sx - w * 0.55), R * 1.05);
+    ctx.lineTo(R * (sx - w * 0.14), R * (1.05 - h) + R * 0.12);
+    ctx.lineTo(R * sx, R * (1.05 - h));
+    ctx.lineTo(R * (sx + w * 0.3), R * (1.05 - h) + R * 0.3);
+    ctx.lineTo(R * (sx + w * 0.55), R * 1.05);
+    ctx.closePath();
+    ctx.fillStyle = '#0c0714';
+    ctx.fill();
+    ctx.strokeStyle = '#4d2a6e';
+    ctx.lineWidth = lw * 0.8;
+    ctx.stroke();
+    // The slit window, burning like a watching eye.
+    const flick = 0.6 + Math.sin(time * 3.1 + sx * 5) * 0.4;
+    ctx.fillStyle = `rgba(255, 60, 70, ${(0.45 + flick * 0.55).toFixed(3)})`;
+    ctx.fillRect(R * (sx - 0.035), R * (1.05 - h * 0.72), R * 0.07, R * h * 0.3);
+  }
+  // The submarine hull the shards stand on, rivets and all.
+  ctx.beginPath();
+  ctx.ellipse(0, R * 1.08, R * 1.7, R * 0.34, 0, Math.PI, 0);
+  ctx.closePath();
+  ctx.fillStyle = '#140b20';
+  ctx.fill();
   ctx.strokeStyle = STICKER_OUTLINE;
   ctx.lineWidth = lw;
-  ctx.beginPath();
-  ctx.moveTo(-R * 1.2, R * 1.15);
-  ctx.lineTo(-R * 0.9, R * 0.55);
-  ctx.lineTo(-R * 0.55, R * 0.8);
-  ctx.lineTo(-R * 0.2, R * 0.42);
-  ctx.lineTo(R * 0.25, R * 0.75);
-  ctx.lineTo(R * 0.7, R * 0.5);
-  ctx.lineTo(R * 1.2, R * 1.15);
-  ctx.closePath();
-  ctx.fill();
   ctx.stroke();
+  for (let k = -3; k <= 3; k++) {
+    ctx.beginPath();
+    ctx.arc(R * k * 0.42, R * 1.02, R * 0.03, 0, 6.283);
+    ctx.fillStyle = '#4d2a6e';
+    ctx.fill();
+  }
 
-  // The hoard: a heap of gold tokens spilling down the crag.
+  // THE SUCTION: stolen tokens spiralling in from the void, pulled down the
+  // castle gate. This is where every troll hole leads, made visible.
+  for (let k = 0; k < 12; k++) {
+    const seed = k * 2.399963;
+    const phase = (time * 0.22 + k / 12) % 1;
+    const rad = R * (2.5 - phase * 2.1);
+    const ang = seed + phase * 3.6;
+    const tx = Math.cos(ang) * rad;
+    const ty = Math.sin(ang) * rad * 0.5 + R * 0.2 * phase;
+    ctx.globalAlpha = 0.25 + phase * 0.75;
+    ctx.beginPath();
+    ctx.ellipse(tx, ty, R * 0.055, R * 0.07, ang, 0, 6.283);
+    ctx.fillStyle = '#ffd24a';
+    ctx.fill();
+    ctx.strokeStyle = STICKER_OUTLINE;
+    ctx.lineWidth = lw * 0.4;
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+
+  // The hoard: a heap of gold tokens spilling down the hull.
   for (let k = 0; k < 9; k++) {
     const hx = Math.sin(k * 2.7) * R * 0.55;
     const hy = R * (0.62 + (k % 3) * 0.12);
@@ -1611,6 +1699,103 @@ function drawJsonBoss(
     ctx.lineWidth = lw * 0.5;
     ctx.stroke();
   }
+  ctx.restore();
+}
+
+/**
+ * MOUNT SOCKO: an ominous mountain that is, on a second look, a giant sock.
+ * The ankle rises as the peak, the foot rolls out as a ridge, snow caps the
+ * cuff and two slanted lights burn near the summit like the eyes of every
+ * little Socko that ever posted somebody here. This is where an enveloped
+ * bug gets flash-taken; a landmark visible from the pulled-out map so the
+ * displaced can at least see where they ended up.
+ */
+function drawSockMount(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  R: number,
+  time: number
+): void {
+  const lw = Math.max(4, R * 0.05);
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
+  // A faint cold mist pooling around the base.
+  const mist = ctx.createRadialGradient(0, R * 0.7, R * 0.2, 0, R * 0.7, R * 1.9);
+  mist.addColorStop(0, 'rgba(120, 130, 180, 0.18)');
+  mist.addColorStop(1, 'rgba(120, 130, 180, 0)');
+  ctx.fillStyle = mist;
+  ctx.beginPath();
+  ctx.arc(0, R * 0.7, R * 1.9, 0, 6.283);
+  ctx.fill();
+  // The mountain-sock: cuff peak, ankle slope, the toe ridge rolling out.
+  ctx.beginPath();
+  ctx.moveTo(-R * 0.55, -R * 1.55); // cuff, left
+  ctx.lineTo(R * 0.1, -R * 1.62); // cuff, right
+  ctx.lineTo(R * 0.32, -R * 0.6); // ankle, front
+  ctx.quadraticCurveTo(R * 0.5, R * 0.1, R * 1.15, R * 0.28); // instep out to the toe
+  ctx.quadraticCurveTo(R * 1.62, R * 0.42, R * 1.5, R * 0.85); // toe rounding down
+  ctx.lineTo(-R * 1.35, R * 0.85); // base
+  ctx.closePath();
+  ctx.fillStyle = '#2c2137';
+  ctx.fill();
+  ctx.strokeStyle = STICKER_OUTLINE;
+  ctx.lineWidth = lw;
+  ctx.stroke();
+  // Rock facets, so it reads as stone before it reads as laundry.
+  ctx.strokeStyle = '#4a3a5e';
+  ctx.lineWidth = lw * 0.6;
+  ctx.beginPath();
+  ctx.moveTo(-R * 0.3, -R * 1.1);
+  ctx.lineTo(-R * 0.05, -R * 0.4);
+  ctx.lineTo(-R * 0.5, R * 0.3);
+  ctx.moveTo(R * 0.25, -R * 0.5);
+  ctx.lineTo(R * 0.7, R * 0.2);
+  ctx.moveTo(R * 0.9, R * 0.35);
+  ctx.lineTo(R * 1.2, R * 0.6);
+  ctx.stroke();
+  // The snow cap IS the sock's cuff: white ribbing over the summit.
+  ctx.beginPath();
+  ctx.moveTo(-R * 0.55, -R * 1.55);
+  ctx.lineTo(R * 0.1, -R * 1.62);
+  ctx.lineTo(R * 0.2, -R * 1.15);
+  ctx.quadraticCurveTo(-R * 0.2, -R * 1.0, -R * 0.48, -R * 1.18);
+  ctx.closePath();
+  ctx.fillStyle = '#eef2fa';
+  ctx.fill();
+  ctx.strokeStyle = STICKER_OUTLINE;
+  ctx.lineWidth = lw * 0.8;
+  ctx.stroke();
+  for (let k = 0; k < 4; k++) {
+    ctx.beginPath();
+    ctx.moveTo(-R * (0.42 - k * 0.16), -R * 1.5);
+    ctx.lineTo(-R * (0.38 - k * 0.16), -R * 1.16);
+    ctx.strokeStyle = '#c9d4e8';
+    ctx.lineWidth = lw * 0.4;
+    ctx.stroke();
+  }
+  // A darned heel patch on the ridge: unmistakably a sock, unmistakably huge.
+  ctx.beginPath();
+  ctx.ellipse(R * 0.62, R * 0.5, R * 0.22, R * 0.16, -0.3, 0, 6.283);
+  ctx.fillStyle = '#3e3050';
+  ctx.fill();
+  ctx.strokeStyle = '#4a3a5e';
+  ctx.lineWidth = lw * 0.5;
+  ctx.setLineDash([lw, lw]);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  // The slanty summit lights, breathing with mischief.
+  const glow = 0.55 + Math.sin(time * 2.3) * 0.45;
+  ctx.strokeStyle = `rgba(255, 214, 74, ${(0.4 + glow * 0.6).toFixed(3)})`;
+  ctx.lineWidth = lw * 0.9;
+  ctx.beginPath();
+  ctx.moveTo(-R * 0.28, -R * 0.86);
+  ctx.lineTo(-R * 0.08, -R * 0.74);
+  ctx.moveTo(R * 0.14, -R * 0.9);
+  ctx.lineTo(-R * 0.04, -R * 0.78);
+  ctx.stroke();
   ctx.restore();
 }
 

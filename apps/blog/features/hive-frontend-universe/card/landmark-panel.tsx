@@ -34,10 +34,12 @@ export interface LandmarkPanelProps {
   links?: { label: string; href: string }[];
   /** Heading over the links list; the caller localises it. */
   linksLabel?: string;
+  /** Small labelled rows of real numbers (a witness visit's chain stats). */
+  stats?: { label: string; value: string }[];
   onSkip: () => void;
 }
 
-export const LandmarkPanel = ({ title, kind, path, accent, links, linksLabel, onSkip }: LandmarkPanelProps) => {
+export const LandmarkPanel = ({ title, kind, path, accent, links, linksLabel, stats, onSkip }: LandmarkPanelProps) => {
   const { t } = useTranslation('common_blog');
   const href = landmarkHref(kind, path);
   const color = ACCENT_HEX[accent] ?? '#5EE9D5';
@@ -53,8 +55,18 @@ export const LandmarkPanel = ({ title, kind, path, accent, links, linksLabel, on
           <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: color }} aria-hidden="true" />
           <span className="font-mono text-sm font-bold text-[#e9f4f8]">{title}</span>
         </div>
-        {href === null ? (
+        {href === null && !stats?.length ? (
           <p className="mb-3 text-sm text-[#8fa6b4]">{t('hive_frontend_universe.panel.nothing_here')}</p>
+        ) : null}
+        {stats?.length ? (
+          <dl className="mb-3 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1" data-testid="hfu-witness-stats">
+            {stats.map((s) => (
+              <div key={s.label} className="contents">
+                <dt className="font-mono text-[11px] uppercase tracking-wide text-[#8fa6b4]">{s.label}</dt>
+                <dd className="text-right font-mono text-xs text-[#e9f4f8]">{s.value}</dd>
+              </div>
+            ))}
+          </dl>
         ) : null}
         {links?.length ? (
           <div className="mb-3">

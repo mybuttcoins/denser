@@ -1,12 +1,13 @@
 /**
- * Hive Frontend Universe - the population. Visible but completely INERT.
+ * Hive Frontend Universe - the population.
  *
- * Placeholder critters scattered through the world, drifting slowly along
- * (and slightly beside) the lines. The bug passes straight through them:
- * no collision, no damage, no interaction, no names, no lore. This file is
- * THE SEAM for the population: spawning, movement and drawing all live here,
- * so behaviour can be added later without touching the world builder or the
- * renderer (which only calls the three exported functions).
+ * Critters scattered through the world, drifting slowly along (and slightly
+ * beside) the lines. This file is THE SEAM for the population: spawning,
+ * movement and drawing live here. Their BEHAVIOUR lives in two other seams:
+ * token theft in coins.ts (Sly Grin, Drainiac) and time-wasting nuisances in
+ * hazards.ts (Socko, Blahgart, Copypasta). Every kind has a name (see the
+ * locales under hive_frontend_universe.critters) and a place in the lore
+ * (module README).
  *
  * Five kinds, each a distinct chunky-sticker silhouette readable at play
  * zoom: thick dark outlines, flat bright fills.
@@ -215,111 +216,133 @@ export function drawCritters(
         drawExtractor(ctx, c.x, c.y + bob, c.face, time);
         break;
       case 'spammer':
-        drawSpammer(ctx, c.x, c.y + bob, c.face);
+        drawSpammer(ctx, c.x, c.y + bob, c.face, time);
         break;
     }
   }
 }
 
-/** Sock puppet: an account-shaped blob, button eyes, a hand shadow inside. */
+/**
+ * Socko: an actual SOCK, upright on its toe, leaning like it is up to
+ * something. Slanty half-lidded eyes and a crooked smirk: this one is not
+ * neutral any more. Touch it and it envelops the bug and posts it to
+ * Mount Socko (hazards.ts owns that; this is just the look).
+ */
 function drawSock(ctx: CanvasRenderingContext2D, x: number, y: number, face: number): void {
   ctx.save();
   ctx.translate(x, y);
-  // Grown 1.35x: at the old size players could not tell what it was.
-  ctx.scale(1.35, 1.35);
+  ctx.scale(1.35 * (face >= 0 ? 1 : -1), 1.35);
+  ctx.rotate(0.1);
   sticker(ctx, 3.5);
-  // Body: a sock-ish rounded blob (an avatar bubble gone wrong).
+  // The sock: cuff up top, ankle, then the foot bending forward at the heel.
   ctx.beginPath();
-  ctx.moveTo(-16, 14);
-  ctx.quadraticCurveTo(-20, -2, -12, -14);
-  ctx.quadraticCurveTo(0, -24, 12, -14);
-  ctx.quadraticCurveTo(20, -2, 16, 10);
-  ctx.quadraticCurveTo(10, 20, -2, 19);
-  ctx.quadraticCurveTo(-12, 20, -16, 14);
+  ctx.moveTo(-8, -22);
+  ctx.lineTo(8, -22);
+  ctx.lineTo(8, 2);
+  ctx.quadraticCurveTo(9, 12, 20, 13);
+  ctx.quadraticCurveTo(26, 13.5, 25, 19);
+  ctx.quadraticCurveTo(24, 24, 16, 24);
+  ctx.lineTo(-4, 24);
+  ctx.quadraticCurveTo(-9, 24, -8, 14);
   ctx.closePath();
   ctx.fillStyle = '#f1ead8';
   ctx.fill();
   ctx.stroke();
-  // The hand inside: a dark hand-shaped shadow showing through the fabric.
-  ctx.save();
-  ctx.clip();
-  ctx.globalAlpha = 0.38;
-  ctx.fillStyle = '#33234d';
+  // Cuff ribbing.
+  ctx.fillStyle = '#e3123a';
+  ctx.fillRect(-8, -22, 16, 6);
+  ctx.strokeRect(-8, -22, 16, 6);
+  // Heel patch.
+  ctx.fillStyle = '#d8c9a8';
   ctx.beginPath();
-  ctx.moveTo(-9, 20);
-  ctx.lineTo(-9, 0);
-  for (let f = 0; f < 4; f++) {
-    const fx = -9 + f * 5.4;
-    ctx.quadraticCurveTo(fx + 1, -12 - (f === 1 || f === 2 ? 4 : 0), fx + 4, 0);
-  }
-  ctx.lineTo(13, 20);
-  ctx.closePath();
+  ctx.arc(-2, 20, 5.5, 0, 6.283);
   ctx.fill();
-  ctx.restore();
-  // Button eyes: circles with stitch holes.
-  for (const ex of [-6, 7]) {
-    ctx.beginPath();
-    ctx.arc(ex + face * 1.5, -6, 4.6, 0, 6.283);
-    ctx.fillStyle = '#ffffff';
-    ctx.fill();
-    ctx.stroke();
-    ctx.fillStyle = OUTLINE;
-    ctx.beginPath();
-    ctx.arc(ex + face * 1.5 - 1.4, -6.9, 0.9, 0, 6.283);
-    ctx.arc(ex + face * 1.5 + 1.4, -5.1, 0.9, 0, 6.283);
-    ctx.fill();
-  }
-  // A stitched mouth seam.
+  // SLANTY eyes: two lidded angles, mischief in fabric form.
+  ctx.lineWidth = 3;
   ctx.beginPath();
-  ctx.moveTo(-4 + face * 2, 6);
-  ctx.quadraticCurveTo(1 + face * 2, 9, 6 + face * 2, 6);
+  ctx.moveTo(-6, -10);
+  ctx.lineTo(1, -6.5);
+  ctx.moveTo(8, -12);
+  ctx.lineTo(1.5, -8);
+  ctx.stroke();
+  ctx.fillStyle = OUTLINE;
+  ctx.beginPath();
+  ctx.arc(-2, -5.4, 1.7, 0, 6.283);
+  ctx.arc(4.6, -6.8, 1.7, 0, 6.283);
+  ctx.fill();
+  // The crooked smirk, one corner up.
+  ctx.lineWidth = 2.8;
+  ctx.beginPath();
+  ctx.moveTo(-4, 2);
+  ctx.quadraticCurveTo(2, 5, 7, 0);
   ctx.stroke();
   ctx.restore();
 }
 
-/** Blah: small, round, angry eyebrows, mouth open, noise ripples. */
+/**
+ * Blahgart: the word BLAH given legs, in loud blurt orange. The letters ARE
+ * the creature (angry brows on the B, the H trailing). Get close and it
+ * spits bright green slime that sticks the bug down (hazards.ts).
+ */
 function drawBlah(ctx: CanvasRenderingContext2D, x: number, y: number, face: number, time: number): void {
   ctx.save();
   ctx.translate(x, y);
-  // Grown 1.35x: at the old size players could not tell what it was.
   ctx.scale(1.35, 1.35);
-  sticker(ctx, 3.2);
-  // Noise ripples off the open mouth.
+  // Noise ripples keep radiating: it never stops talking.
   const rip = (time * 1.7) % 1;
   ctx.strokeStyle = '#ff8c42';
   ctx.lineWidth = 2.6;
+  ctx.lineCap = 'round';
   for (let i = 0; i < 3; i++) {
-    const rr = 14 + ((rip + i / 3) % 1) * 16;
-    ctx.globalAlpha = 0.75 * (1 - ((rip + i / 3) % 1));
+    const rr = 18 + ((rip + i / 3) % 1) * 16;
+    ctx.globalAlpha = 0.7 * (1 - ((rip + i / 3) % 1));
     ctx.beginPath();
-    ctx.arc(face * 6, 3, rr, face > 0 ? -0.7 : Math.PI - 0.7, face > 0 ? 0.7 : Math.PI + 0.7);
+    ctx.arc(face * 12, -2, rr, face > 0 ? -0.6 : Math.PI - 0.6, face > 0 ? 0.6 : Math.PI + 0.6);
     ctx.stroke();
   }
   ctx.globalAlpha = 1;
-  sticker(ctx, 3.2);
+  // The word itself: fat rounded letters, blurt orange, dark outline. Text
+  // metrics are stable across canvases for a monospace stack, and the letters
+  // bounce out of phase so the word reads as walking.
+  ctx.font = '900 21px ui-monospace, SFMono-Regular, Menlo, monospace';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  const word = 'BLAH';
+  for (let i = 0; i < word.length; i++) {
+    const lx = (i - 1.5) * 13.5;
+    const ly = Math.sin(time * 6 + i * 1.3) * 2.4;
+    ctx.strokeStyle = OUTLINE;
+    ctx.lineWidth = 5;
+    ctx.lineJoin = 'round';
+    ctx.strokeText(word[i], lx, ly);
+    ctx.fillStyle = '#ff7a1a';
+    ctx.fillText(word[i], lx, ly);
+  }
+  // Angry brows over the B, so the word has a face after all.
+  sticker(ctx, 2.8);
   ctx.beginPath();
-  ctx.arc(0, 0, 12, 0, 6.283);
-  ctx.fillStyle = '#ffb020';
-  ctx.fill();
+  ctx.moveTo(-26, -16);
+  ctx.lineTo(-19, -13);
+  ctx.moveTo(-11, -16.5);
+  ctx.lineTo(-17.5, -13.5);
   ctx.stroke();
-  // Angry brows.
+  // Little legs under the letters, scurrying.
+  ctx.lineWidth = 2.6;
+  for (let i = 0; i < 4; i++) {
+    const lx = (i - 1.5) * 13.5;
+    const kick = Math.sin(time * 9 + i * 2.1) * 3;
+    ctx.beginPath();
+    ctx.moveTo(lx, 11);
+    ctx.lineTo(lx + kick, 17);
+    ctx.stroke();
+  }
+  // A green drip at the mouth corner: the slime it spits is already brewing.
+  ctx.fillStyle = '#52f22e';
   ctx.beginPath();
-  ctx.moveTo(face * 2 - 7, -7);
-  ctx.lineTo(face * 2 - 1.5, -4);
-  ctx.moveTo(face * 2 + 7, -8.5);
-  ctx.lineTo(face * 2 + 1.5, -4.8);
-  ctx.stroke();
-  // Dot eyes under the brows.
-  ctx.fillStyle = OUTLINE;
-  ctx.beginPath();
-  ctx.arc(face * 2 - 4, -1.5, 1.7, 0, 6.283);
-  ctx.arc(face * 2 + 4, -2, 1.7, 0, 6.283);
+  ctx.ellipse(face * 27, 6 + Math.sin(time * 3) * 1.5, 3, 4.2, 0, 0, 6.283);
   ctx.fill();
-  // Mouth: wide open, mid-blah.
-  ctx.beginPath();
-  ctx.ellipse(face * 4, 5, 4.6, 3.6, 0, 0, 6.283);
-  ctx.fillStyle = '#5c1010';
-  ctx.fill();
+  ctx.strokeStyle = OUTLINE;
+  ctx.lineWidth = 2;
   ctx.stroke();
   ctx.restore();
 }
@@ -521,65 +544,74 @@ function drawPaper(ctx: CanvasRenderingContext2D, x: number, y: number, alpha: n
   ctx.restore();
 }
 
-/** Spammer: a squat gremlin hugging a stack of the very same papers. */
-function drawSpammer(ctx: CanvasRenderingContext2D, x: number, y: number, face: number): void {
+/**
+ * Copypasta: an octopus made of pasta. A meatball-and-noodle head over eight
+ * spaghetti arms that never stop waving; the same arm drawn eight times is
+ * the whole joke. Brush against it and the arms wrap the bug, which then has
+ * to jump repeatedly to tear free (hazards.ts).
+ */
+function drawSpammer(ctx: CanvasRenderingContext2D, x: number, y: number, face: number, time?: number): void {
+  const tm = time ?? 0;
   ctx.save();
   ctx.translate(x, y);
-  // Grown 1.35x: at the old size players could not tell what it was.
   ctx.scale(1.35, 1.35);
-  sticker(ctx, 3.5);
-  // Body.
-  ctx.beginPath();
-  ctx.moveTo(-12, 14);
-  ctx.quadraticCurveTo(-15, -8, -6, -13);
-  ctx.quadraticCurveTo(0, -16, 6, -13);
-  ctx.quadraticCurveTo(15, -8, 12, 14);
-  ctx.closePath();
-  ctx.fillStyle = '#5fd968';
-  ctx.fill();
-  ctx.stroke();
-  // Ears.
-  ctx.beginPath();
-  ctx.moveTo(-7, -12);
-  ctx.lineTo(-11, -19);
-  ctx.lineTo(-3, -14.5);
-  ctx.moveTo(7, -12);
-  ctx.lineTo(11, -19);
-  ctx.lineTo(3, -14.5);
-  ctx.fillStyle = '#5fd968';
-  ctx.fill();
-  ctx.stroke();
-  // Eyes: wide, busy.
-  for (const ex of [-4.5, 4.5]) {
+  sticker(ctx, 3);
+  // Eight spaghetti arms, each the SAME curve pasted at a new angle. Cream
+  // noodles with the dark outline underneath so they read on red ground.
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * 6.283 + 0.39;
+    const wave = Math.sin(tm * 4 + i * 1.9) * 6;
+    const ex = Math.cos(a) * 24;
+    const ey = Math.abs(Math.sin(a)) * 16 + 8;
+    ctx.strokeStyle = OUTLINE;
+    ctx.lineWidth = 6.4;
     ctx.beginPath();
-    ctx.arc(ex + face * 1.5, -6, 3.4, 0, 6.283);
+    ctx.moveTo(Math.cos(a) * 6, 4);
+    ctx.quadraticCurveTo(ex * 0.7 + wave, ey * 0.5, ex + wave, ey);
+    ctx.stroke();
+    ctx.strokeStyle = '#f2dfa8';
+    ctx.lineWidth = 3.6;
+    ctx.beginPath();
+    ctx.moveTo(Math.cos(a) * 6, 4);
+    ctx.quadraticCurveTo(ex * 0.7 + wave, ey * 0.5, ex + wave, ey);
+    ctx.stroke();
+  }
+  // Head: a dome of noodles over a meatball heart.
+  sticker(ctx, 3);
+  ctx.beginPath();
+  ctx.arc(0, -5, 13.5, Math.PI, 0);
+  ctx.quadraticCurveTo(14.5, 4, 10, 5.5);
+  ctx.lineTo(-10, 5.5);
+  ctx.quadraticCurveTo(-14.5, 4, -13.5, -5);
+  ctx.closePath();
+  ctx.fillStyle = '#f2dfa8';
+  ctx.fill();
+  ctx.stroke();
+  // Noodle strands over the dome.
+  ctx.lineWidth = 1.8;
+  for (let i = -2; i <= 2; i++) {
+    ctx.beginPath();
+    ctx.moveTo(i * 4.6, -18);
+    ctx.quadraticCurveTo(i * 5.4, -8, i * 4.2, 5);
+    ctx.stroke();
+  }
+  // The meatball, peeking out of the noodles like a bad idea.
+  ctx.fillStyle = '#8a4a2c';
+  ctx.beginPath();
+  ctx.arc(face * 5, -14, 5.4, 0, 6.283);
+  ctx.fill();
+  ctx.stroke();
+  // Round hungry eyes.
+  for (const exx of [-5, 5]) {
+    ctx.beginPath();
+    ctx.arc(exx + face * 1.5, -3, 3.6, 0, 6.283);
     ctx.fillStyle = '#ffffff';
     ctx.fill();
     ctx.stroke();
     ctx.fillStyle = OUTLINE;
     ctx.beginPath();
-    ctx.arc(ex + face * 2.6, -6, 1.5, 0, 6.283);
+    ctx.arc(exx + face * 2.8, -3, 1.6, 0, 6.283);
     ctx.fill();
   }
-  // The stack of identical papers, hugged in front.
-  ctx.save();
-  ctx.translate(face * 8, 6);
-  ctx.rotate(face * 0.12);
-  ctx.fillStyle = '#f5f2e8';
-  ctx.lineWidth = 2.4;
-  ctx.fillRect(-7, -8, 14, 16);
-  ctx.strokeRect(-7, -8, 14, 16);
-  ctx.beginPath();
-  ctx.moveTo(-7, -4.5);
-  ctx.lineTo(7, -4.5);
-  ctx.moveTo(-7, -1);
-  ctx.lineTo(7, -1);
-  ctx.stroke();
-  ctx.restore();
-  // Stubby arms around the stack.
-  ctx.beginPath();
-  ctx.moveTo(-9, 2);
-  ctx.quadraticCurveTo(face * 2, 12, face * 12, 8);
-  ctx.stroke();
   ctx.restore();
 }

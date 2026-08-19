@@ -151,6 +151,7 @@ export type IconKey =
   | 'hivemark'
   | 'blocks'
   | 'jsonboss'
+  | 'sockmount'
   | 'pulse'
   | 'gate';
 
@@ -228,7 +229,11 @@ export const LANDMARKS: readonly Landmark[] = [
   // THE MIGHTY J SON himself, crouched on his keep at the edge of the world.
   // His link leads to the block explorer: the one place you can stare at the
   // raw JSON he hoards. BIG, so the silhouette is visible from the far coast.
-  { id: 'json_keep', kind: 'explorer', path: '/', labelKey: 'hive_frontend_universe.landmarks.json_keep', category: 'dapp', icon: 'jsonboss', place: { in: 'cluster', cluster: 'json_keep', angleDeg: 30, dist: 520 }, big: true }
+  { id: 'json_keep', kind: 'explorer', path: '/', labelKey: 'hive_frontend_universe.landmarks.json_keep', category: 'dapp', icon: 'jsonboss', place: { in: 'cluster', cluster: 'json_keep', angleDeg: 30, dist: 520 }, big: true },
+  // Mount Socko stands on the very NORTH TIP of the logo: a sock-shaped
+  // mountain, visible from the pulled-out map, where a Socko-enveloped bug is
+  // flash-taken. Pure lore, no page behind it; the trip itself is the toll.
+  { id: 'mount_socko', kind: 'none', path: '', labelKey: 'hive_frontend_universe.landmarks.mount_socko', category: 'info', icon: 'sockmount', place: { in: 'body', x: -1130, y: -4950 }, big: true }
 ];
 
 /**
@@ -237,12 +242,12 @@ export const LANDMARKS: readonly Landmark[] = [
  * answered 200 to a live audit; ecency and inleo answer 403 to curl (bot
  * guards) but are canonical live frontends. Names are proper nouns.
  */
-export const DAPP_DIRECTORY: readonly { name: string; url: string }[] = [
-  { name: 'PeakD', url: 'https://peakd.com' },
-  { name: 'Ecency', url: 'https://ecency.com' },
-  { name: 'InLeo', url: 'https://inleo.io' },
-  { name: '3Speak', url: 'https://3speak.tv' },
-  { name: 'Actifit', url: 'https://actifit.io' },
+export const DAPP_DIRECTORY: readonly { name: string; url: string; account?: string }[] = [
+  { name: 'PeakD', url: 'https://peakd.com', account: 'peakd' },
+  { name: 'Ecency', url: 'https://ecency.com', account: 'ecency' },
+  { name: 'InLeo', url: 'https://inleo.io', account: 'leofinance' },
+  { name: '3Speak', url: 'https://3speak.tv', account: 'threespeak' },
+  { name: 'Actifit', url: 'https://actifit.io', account: 'actifit' },
   { name: 'TribalDex', url: 'https://tribaldex.com' },
   { name: 'Hive.io', url: 'https://hive.io' }
 ];

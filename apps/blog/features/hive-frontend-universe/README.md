@@ -135,26 +135,40 @@ keep them; several are load-bearing for future multiplayer.
 
 Every creature has a name, a nature and a reason to exist. The fiction is
 thin on purpose: each one personifies something a real Hive user actually
-meets, so the game doubles as a warning label.
+meets, so the game doubles as a warning label. The thieves take TOKENS
+(engine/coins.ts); the nuisances take TIME (engine/hazards.ts). None of them
+can kill; a drifting bug sails over all of them, so jumping is always the
+answer.
 
 | Name | Kind | Count | Nature | What it does |
 |------|------|-------|--------|--------------|
-| Socko | sock puppet | 14 | neutral | A fake account with button eyes. Wanders, blocks nothing, takes nothing. The crowd the villain hides behind. |
-| Blahgart | noise blob | 16 | neutral | Babbles endlessly. Harmless, everywhere, ignorable, exactly like the noise it stands for. |
-| Sly Grin | scammer | 8 | hostile | Golden head, black domino mask, gaucho hat. Snatches 3 carried tokens and dashes for a troll hole. Pounce on it within its getaway to take them back. |
-| Drainiac | extractor | 9 | hostile | Half again bigger than anything else, four sucker snouts. Latches on and drains carried tokens at 2.4/s into a pouch of 4, then hauls the pouch home. Jump to break the latch. |
-| Copypasta | spammer | 11 | neutral | Repeats itself forever. Set dressing today, a candidate for a third thief later. |
+| Socko | sock puppet | 14 | trap | A mischievous sock with slanty eyes. Touch it and it envelops the bug and flash-posts it to Mount Socko on the far north tip: never fatal, always a detour. |
+| Blahgart | the word BLAH, walking | 16 | nuisance | Get close and it spits bright green slime; a slimed bug moves at less than half speed for a few seconds. Loud, sticky, avoidable. |
+| Sly Grin | scammer | 8 | thief | Golden head, black domino mask, gaucho hat. Snatches 3 carried tokens and dashes for a troll hole. Pounce on it within its getaway to take them back. |
+| Drainiac | extractor | 9 | thief | Half again bigger than anything else, four sucker snouts. Latches on and drains carried tokens at 2.4/s into a pouch of 4, then hauls the pouch home. Jump to break the latch. |
+| Copypasta | pasta octopus | 11 | nuisance | An octopus made of spaghetti, the same arm pasted eight times. Brush it and the noodles wrap the bug; three quick jumps tear it free. |
 
-All hostiles serve **the Mighty J SON**, controller of the sock puppets and
-bots, who hoards stolen tokens in his keep at the far edge of the world. The
-keep sits deliberately beyond every jump: only a bug that has compiled all 21
-oxygen helmets (one per consensus witness) can cross the last gap. Troll
-holes are his supply lines; whatever a thief drops down one is his.
+All of them serve **Emperor J SON**, who squats in a black shard castle at
+the far south-east edge of the world, half fortress, half surfaced
+submarine, where the stolen tokens visibly spiral in. The reference is
+Hive's actual founding story: in 2020 a new owner tried to take over the
+old chain with a ninja-mined stake, and the community forked away and
+built Hive. The Emperor hoards; the chain routes around him. His keep sits
+deliberately beyond every jump: only a bug that has compiled all 21 oxygen
+helmets (one per consensus witness) can cross the last gap. Troll holes are
+his supply lines; whatever a thief drops down one is his.
+
+**Mount Socko** stands on the north tip of the logo, a mountain that is
+unmistakably a sock: snow for a cuff, a darned heel, two slanted lights near
+the summit. It is where enveloped bugs get posted, visible from the full map
+so the displaced can see how far from home they are.
 
 Rides are the friendly half of the same idea. One full rotation on the DHF
 ferris wheel earns a breath of **spare air** (a whole extra ring on one jump,
-then spent). Drifting against a witness citadel catches the light beam up the
-tower to meet the witness at the crown. Both are cosmetic transports: the
+then spent). Drifting against a witness citadel catches the light beam: a
+ROUND TRIP up to the crown, where the witness's card opens with their real
+chain stats (version, last block, missed blocks), then back down, and the
+drift resumes with the air topped up. Both are cosmetic transports: the
 player's edge-and-fraction position is never touched mid-ride, which is the
 invariant that keeps future multiplayer cheap.
 
@@ -168,11 +182,36 @@ widths, frame times) were measured. There is no automated test suite for the
 module yet; that is the most honest criticism of it, and the commit history
 records what was verified by hand at every pass.
 
+## Design notes (borrowed deliberately)
+
+Choices in this map lean on patterns from games people love returning to,
+studied rather than guessed at:
+
+- **Weenies / landmark hierarchy** (theme parks, Zelda): one mega-silhouette
+  per region: the tent, the wheel, the citadel ring, Mount Socko, the shard
+  castle. You navigate by shapes, not labels.
+- **Visible-but-unreachable** (Breath of the Wild's curiosity gap): the
+  Emperor's keep is on the map from minute one and out of jump range until
+  the helmet hunt is finished. The question "how do I get THERE" is the
+  engine of the collectathon.
+- **Danger is legible before it is close** (Hollow Knight's area moods): the
+  keep corner has a cold aura and no warm light pool; the friendly places
+  glow warm. You read safety by colour temperature.
+- **Nuisance, not death** (Mario, not roguelikes): every enemy costs time or
+  tokens, never progress. The sock trip is a Super Mario World warp pipe with
+  a grudge.
+- **Travel itself pays** (Odyssey's reward density): tokens, helmets and
+  rides are scattered ON the way between places, so movement is never empty.
+
+Candidates deliberately left for later passes: a rotating "buzzing station"
+paying double from a date hash, visit-A-then-B destination tickets (Ticket to
+Ride), a map-completion counter, and Steem ruins as environmental storytelling.
+
 ## Status
 
 Playable and in active development. The commit messages (search `HFU pass`)
 are the changelog and each one ends with a KNOWN ISSUES section that says
 plainly what is stubbed, unverified or ugly. Current known gaps: thieves walk
-straight lines over water, only two of five critter kinds steal, banking has
-no reward beyond the counter, and token gifting as post comments is designed
-but deliberately unbuilt (it would broadcast).
+straight lines over water, banking has no reward beyond the counter, and
+token gifting as post comments is designed but deliberately unbuilt (it
+would broadcast).

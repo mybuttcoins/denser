@@ -35,6 +35,9 @@ import {
 import { drawCritters } from './critters';
 import { drawCoins, type CoinState } from './coins';
 import { drawHelmets, drawSuitBubble, type HelmetState } from './helmets';
+import type { HazardState } from './hazards';
+import { DAPP_WINDOWS } from './icons';
+import { DAPP_DIRECTORY } from '../lib/fixed-world';
 import { avatarImage } from './avatars';
 import { drawGround, GROUND_VOID, type Ground } from './ground';
 
@@ -102,6 +105,12 @@ export interface RouteLayer {
    * transit maps have always drawn shared track.
    */
   dash?: number[];
+  /**
+   * ELECTRICITY: the colour of the bright charge packets that travel along
+   * the line. Drawn as an animated dash overlay, faint at play zoom and vivid
+   * on the pulled-out map, where the network should visibly circulate.
+   */
+  spark?: string;
 }
 
 export const ACCENT_HEX: Record<string, string> = {
@@ -149,6 +158,7 @@ const BIG_SIZE: Partial<Record<IconKey, number>> = {
   blackhole: 119,
   jsonboss: 165,
   launchpad: 140,
+  sockmount: 145,
   tent: 350
 };
 
@@ -247,6 +257,8 @@ export interface RenderScene {
   coins: CoinState | null;
   /** The 21 oxygen helmets and how many the player has compiled. */
   helmetState: HelmetState | null;
+  /** The nuisance hazards on the bug (goo, wrap, sock envelop). */
+  hazards: HazardState | null;
   /**
    * While the bug rides something (the ferris wheel, a witness beam), it is
    * drawn HERE instead of at its physics position. Cosmetic only: the player's
@@ -514,6 +526,25 @@ export function drawScene(scene: RenderScene): void {
       }
     }
     if (layer.dash) ctx.setLineDash([]);
+    // THE ELECTRICITY: bright charge packets running along the line, one
+    // extra dashed pass with its offset animated. Subtle while riding, vivid
+    // on the pulled-out map, which is where the network should visibly hum.
+    // Each edge restarts the pattern at its own start, but the offsets all
+    // move together, so the eye reads one continuous circulation.
+    if (layer.spark) {
+      const zz = Math.max(z, 0.05);
+      ctx.setLineDash([34 / zz, 300 / zz]);
+      ctx.lineDashOffset = -((time * 260) % 334) / zz - layerPhase * 40;
+      ctx.strokeStyle = layer.spark;
+      ctx.lineWidth = (layer.width * 0.62) / zz;
+      ctx.globalAlpha = 0.3 + mapness * 0.7;
+      for (const e of edges) {
+        if (!layer.edges.has(e.id) || !edgeVis(e)) continue;
+        strokeEdge(e);
+      }
+      ctx.setLineDash([]);
+      ctx.lineDashOffset = 0;
+    }
   }
   ctx.globalAlpha = 1;
 
@@ -759,6 +790,33 @@ export function drawScene(scene: RenderScene): void {
     } else {
       drawIcon(ctx, lm.icon, n.x, n.y, s, col, time, lm.label);
     }
+    // THE dAPP STATION'S WINDOWS: real dApp logos looking out. The icon
+    // draws the holes (DAPP_WINDOWS, same list); once each dApp account's
+    // avatar loads it is clipped into its window. Until then the icon's own
+    // coloured glass shows, so nothing ever looks broken.
+    if (lm.icon === 'launchpad') {
+      const stationR = s * 2.2;
+      const withLogos = DAPP_DIRECTORY.filter((dd) => dd.account);
+      for (let k = 0; k < DAPP_WINDOWS.length && k < withLogos.length; k++) {
+        const win = DAPP_WINDOWS[k];
+        const img = withLogos[k].account ? avatarImage(withLogos[k].account as string) : null;
+        if (!img) continue;
+        const wx = n.x + win.dx * stationR;
+        const wy = n.y + win.dy * stationR;
+        const wr = win.r * stationR * 0.92;
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(wx, wy, wr, 0, 6.283);
+        ctx.clip();
+        ctx.drawImage(img, wx - wr, wy - wr, wr * 2, wr * 2);
+        ctx.restore();
+        ctx.strokeStyle = '#141019';
+        ctx.lineWidth = Math.max(2, stationR * 0.04);
+        ctx.beginPath();
+        ctx.arc(wx, wy, wr, 0, 6.283);
+        ctx.stroke();
+      }
+    }
   }
 
   // Communities: glowing translucent bubbles of varying size.
@@ -816,6 +874,9 @@ export function drawScene(scene: RenderScene): void {
   drawBug(ctx, player, time, bugX, bugY);
   if (scene.helmetState) {
     drawSuitBubble(ctx, bugX, bugY, scene.helmetState, time);
+  }
+  if (scene.hazards) {
+    drawHazardsOnBug(ctx, scene.hazards, bugX, bugY, time);
   }
 
   // Warp effect: expanding rings at the bug.
@@ -920,6 +981,114 @@ function drawHud(scene: RenderScene): void {
  * The bug, kept exactly as before: red diamond body, antennae with googly
  * eyes, the cyan surfboard, and the drift countdown ring.
  */
+/**
+ * What the nuisances look like ON the bug: green slime while gooed, waving
+ * pasta arms while wrapped, and the sock-envelop trip (a giant sock drops
+ * over the bug, closes, and lifts). Also paints in-flight goo spits, which
+ * are the only hazard visual that lives away from the bug itself.
+ */
+function drawHazardsOnBug(
+  ctx: CanvasRenderingContext2D,
+  hz: HazardState,
+  x: number,
+  y: number,
+  time: number
+): void {
+  // Goo spits in flight: a fat green lob from Blahgart to where the bug was.
+  for (const s of hz.splats) {
+    const f = Math.min(1, s.age / 0.3);
+    const px = lerp(s.fromX, s.toX, f);
+    const py = lerp(s.fromY, s.toY, f) - Math.sin(f * Math.PI) * 60;
+    ctx.fillStyle = '#52f22e';
+    ctx.globalAlpha = 1 - s.age;
+    ctx.beginPath();
+    ctx.ellipse(px, py, 9, 7, f * 2, 0, 6.283);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+
+  // Slime coat: bright green blob dripping off the bug, sliding down as it
+  // wears off. Loud on purpose; being slimed should feel embarrassing.
+  if (hz.gooT > 0) {
+    const wear = Math.min(1, hz.gooT / 3.2);
+    ctx.globalAlpha = 0.5 + wear * 0.35;
+    ctx.fillStyle = '#52f22e';
+    ctx.beginPath();
+    ctx.ellipse(x, y - 4 + (1 - wear) * 10, 30, 24 * wear + 6, 0, 0, 6.283);
+    ctx.fill();
+    // Drips.
+    for (let k = -1; k <= 1; k++) {
+      const dy = ((time * 40 + k * 23) % 26) * wear;
+      ctx.beginPath();
+      ctx.ellipse(x + k * 16, y + 14 + dy, 4, 6, 0, 0, 6.283);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  // The pasta wrap: noodles cinched around the bug, wiggling harder with
+  // every escape jump. The count is legible from the wrap thinning.
+  if (hz.wrapJumps > 0) {
+    const shake = hz.wrapShake > 0 ? Math.sin(time * 60) * 4 : 0;
+    ctx.strokeStyle = '#f2dfa8';
+    for (let k = 0; k < hz.wrapJumps * 2; k++) {
+      ctx.lineWidth = 6;
+      ctx.strokeStyle = '#141019';
+      ctx.beginPath();
+      ctx.ellipse(x + shake, y, 34, 15 + k * 6, -0.35 + k * 0.28, 0, 6.283);
+      ctx.stroke();
+      ctx.lineWidth = 3.6;
+      ctx.strokeStyle = '#f2dfa8';
+      ctx.beginPath();
+      ctx.ellipse(x + shake, y, 34, 15 + k * 6, -0.35 + k * 0.28, 0, 6.283);
+      ctx.stroke();
+    }
+  }
+
+  // The sock envelop: a giant Socko drops over the bug (phase 0 to 0.5),
+  // swallows it whole, and yanks away (0.5 to 1). The teleport happens at
+  // the midpoint, hidden inside the sock, which is the whole trick.
+  if (hz.sockT !== null) {
+    const t = hz.sockT;
+    const drop = t < 0.5 ? t / 0.5 : 1;
+    const lift = t > 0.5 ? (t - 0.5) / 0.5 : 0;
+    const sy = y - 160 + drop * 160 - lift * 320;
+    const squash = 1 + Math.sin(Math.min(drop, 1) * Math.PI) * 0.15;
+    ctx.save();
+    ctx.translate(x, sy);
+    ctx.scale(2.6 * squash, 2.6 / squash);
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = '#141019';
+    ctx.lineWidth = 3.5;
+    ctx.beginPath();
+    ctx.moveTo(-8, -22);
+    ctx.lineTo(8, -22);
+    ctx.lineTo(8, 2);
+    ctx.quadraticCurveTo(9, 12, 20, 13);
+    ctx.quadraticCurveTo(26, 13.5, 25, 19);
+    ctx.quadraticCurveTo(24, 24, 16, 24);
+    ctx.lineTo(-4, 24);
+    ctx.quadraticCurveTo(-9, 24, -8, 14);
+    ctx.closePath();
+    ctx.fillStyle = '#f1ead8';
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = '#e3123a';
+    ctx.fillRect(-8, -22, 16, 6);
+    ctx.strokeRect(-8, -22, 16, 6);
+    // The slanty eyes, delighted with itself.
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(-6, -10);
+    ctx.lineTo(1, -6.5);
+    ctx.moveTo(8, -12);
+    ctx.lineTo(1.5, -8);
+    ctx.stroke();
+    ctx.restore();
+  }
+}
+
 function drawBug(
   ctx: CanvasRenderingContext2D,
   p: PlayerState,
