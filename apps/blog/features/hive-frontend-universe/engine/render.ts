@@ -436,15 +436,11 @@ export function drawScene(scene: RenderScene): void {
     drawGround(ctx, scene.ground, vx0, vy0, vx1, vy1, z);
   }
 
-  // VALUE HIERARCHY: at map zoom the land used to be the brightest large
-  // surface on screen, which inverted the whole picture: the ground shouted
-  // and everything standing on it whispered. One viewport rect pulls the
-  // world down toward deep wine as the camera pulls out, so routes, landmarks
-  // and the ring get the contrast back. Play zoom is untouched (mapness 0).
-  if (mapness > 0.05) {
-    ctx.fillStyle = `rgba(12, 2, 6, ${(0.34 * mapness).toFixed(3)})`;
-    ctx.fillRect(vx0, vy0, vx1 - vx0, vy1 - vy0);
-  }
+  // NOTE: an art-direction pass tried darkening the land toward wine at map
+  // zoom here (value-hierarchy argument: the ground was the brightest large
+  // surface on screen). Bryan overruled it: the bright red IS the map's
+  // identity. The hierarchy is carried by the other levers instead: route
+  // casing, landmark exaggeration, ground pads, street fade, vignette.
 
   // Rock formations: spiky crystal clutches standing on the terrain, under
   // everything travelable. Skipped on the pulled-out map, where 190 clutches
