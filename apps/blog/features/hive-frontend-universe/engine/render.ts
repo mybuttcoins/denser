@@ -206,6 +206,15 @@ export interface WitnessVisual {
   rank: number;
   x: number;
   y: number;
+  /**
+   * Where this citadel's TRACTOR LANE ends: a point aimed at the nearest
+   * rail node, stopping one easy jump short of it. The lane from the base
+   * to here is drawn pulsing, and a drifting bug anywhere along it is
+   * caught and carried up. Computed by the caller from the world; absent
+   * until the world is known.
+   */
+  laneX?: number;
+  laneY?: number;
 }
 
 export interface TrafficMarker {
@@ -458,8 +467,74 @@ export function drawScene(scene: RenderScene): void {
   for (const wt of scene.witnesses) {
     // Bigger than pass nine: the citadels were getting lost against the map.
     const towerH = 1680 - (wt.rank - 1) * 22;
-    if (wt.x + towerH < vx0 || wt.x - towerH > vx1 || wt.y + towerH < vy0 || wt.y - towerH > vy1) {
+    // The cull box must cover the tractor lane too, or the landing light
+    // vanishes exactly where the player stands to use it.
+    const laneDist =
+      wt.laneX !== undefined && wt.laneY !== undefined
+        ? Math.hypot(wt.laneX - wt.x, wt.laneY - wt.y) + 220
+        : 0;
+    const cullR = Math.max(towerH, laneDist);
+    if (wt.x + cullR < vx0 || wt.x - cullR > vx1 || wt.y + cullR < vy0 || wt.y - cullR > vy1) {
       continue;
+    }
+    // THE TRACTOR LANE: the citadel's light reaching down toward the land,
+    // ending one jump from the nearest rail node. Jump into it while
+    // drifting and it carries you up. Drawn as a soft tapering beam with
+    // bright motes travelling UP it, so it reads as suction, not string.
+    if (wt.laneX !== undefined && wt.laneY !== undefined && z < 0.12) {
+      // Map zoom: the lanes are a hint, not a light show. One flat stroke
+      // each; the full gradient-and-motes treatment for 21 lanes measured
+      // 6ms of map frame, and this measures under 1ms.
+      ctx.strokeStyle = 'rgba(150, 110, 235, 0.18)';
+      ctx.lineCap = 'round';
+      ctx.lineWidth = 90;
+      ctx.beginPath();
+      ctx.moveTo(wt.x, wt.y);
+      ctx.lineTo(wt.laneX, wt.laneY);
+      ctx.stroke();
+    } else if (wt.laneX !== undefined && wt.laneY !== undefined) {
+      const lx = wt.laneX;
+      const ly = wt.laneY;
+      const pulse2 = 0.55 + Math.sin(time * 2.2 + wt.rank) * 0.45;
+      const grad = ctx.createLinearGradient(wt.x, wt.y, lx, ly);
+      grad.addColorStop(0, 'rgba(170, 130, 250, 0.75)');
+      grad.addColorStop(1, 'rgba(170, 130, 250, 0.16)');
+      ctx.strokeStyle = grad;
+      ctx.lineCap = 'round';
+      ctx.lineWidth = 130;
+      ctx.globalAlpha = 0.5 + pulse2 * 0.3;
+      ctx.beginPath();
+      ctx.moveTo(wt.x, wt.y);
+      ctx.lineTo(lx, ly);
+      ctx.stroke();
+      // A bright core line inside the wash, so the lane reads as a BEAM.
+      ctx.lineWidth = 26;
+      ctx.globalAlpha = 0.3 + pulse2 * 0.25;
+      ctx.strokeStyle = '#cdb4ff';
+      ctx.beginPath();
+      ctx.moveTo(wt.x, wt.y);
+      ctx.lineTo(lx, ly);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+      // Motes riding the lane toward the tower: the direction of the ride.
+      for (let k = 0; k < 4; k++) {
+        const f = 1 - ((time * 0.35 + k / 4 + wt.rank * 0.17) % 1);
+        ctx.globalAlpha = 0.6 + f * 0.4;
+        ctx.fillStyle = '#e6dbff';
+        ctx.beginPath();
+        ctx.arc(lx + (wt.x - lx) * f, ly + (wt.y - ly) * f, 22, 0, 6.283);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+      // The landing light at the lane's end: the "jump HERE" invitation,
+      // breathing wide so it is findable from the nearest junction.
+      ctx.strokeStyle = '#cdb4ff';
+      ctx.lineWidth = 6 / Math.max(z, 0.08);
+      ctx.globalAlpha = 0.35 + pulse2 * 0.55;
+      ctx.beginPath();
+      ctx.arc(lx, ly, 120 + pulse2 * 50, 0, 6.283);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
     }
     drawWitnessCitadel(
       ctx,

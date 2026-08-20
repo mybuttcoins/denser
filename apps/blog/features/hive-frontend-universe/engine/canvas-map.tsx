@@ -211,8 +211,32 @@ const Stage = ({ board }: { board: Board }) => {
   const witnessVisuals: WitnessVisual[] = useMemo(() => {
     if (!witnesses?.length) return [];
     const posts = witnessPosts(witnesses.length);
-    return witnesses.map((w, i) => ({ name: w.name, rank: w.rank, x: posts[i].x, y: posts[i].y }));
-  }, [witnesses]);
+    return witnesses.map((w, i) => {
+      const x = posts[i].x;
+      const y = posts[i].y;
+      // THE TRACTOR LANE. The first beam grabbed within 260px of the base,
+      // which physics proved unreachable for 14 of the 21 citadels (the ring
+      // stands 1000-2200px off the coast; a bare jump dies first). The lane
+      // aims from the base AT the nearest rail node and stops 300px short of
+      // it, so from that node one ordinary jump into the light always
+      // connects, for every citadel, with zero helmets.
+      let nx = 0;
+      let ny = 0;
+      let bestD = Infinity;
+      for (const n of world.nodes) {
+        const d = Math.hypot(n.x - x, n.y - y);
+        if (d < bestD) {
+          bestD = d;
+          nx = n.x;
+          ny = n.y;
+        }
+      }
+      const len = Math.max(400, bestD - 300);
+      const laneX = x + ((nx - x) / bestD) * len;
+      const laneY = y + ((ny - y) / bestD) * len;
+      return { name: w.name, rank: w.rank, x, y, laneX, laneY };
+    });
+  }, [witnesses, world]);
   useEffect(() => {
     for (const w of witnessVisuals) requestAvatar(w.name);
     // The dApp station's window logos, eagerly: the station is a big landmark
@@ -277,14 +301,23 @@ const Stage = ({ board }: { board: Board }) => {
     | { type: 'wheel'; node: number; cx: number; cy: number; startAngle: number }
     | {
         type: 'beam';
+        /** Where the lane caught the bug; the ride starts and ends here. */
+        gx: number;
+        gy: number;
         x: number;
         baseY: number;
         topY: number;
+        /** Glide (grab point to base) and climb (base to crown) lengths. */
+        glide: number;
+        climb: number;
+        /** Seconds for the full one-way trip, scaled to its length. */
+        dur: number;
         t: number;
         /** 1 riding up, -1 riding back down. */
         dir: 1 | -1;
         /** Seconds to pause at the crown, meeting the witness. */
         dwell: number;
+        met: boolean;
         name: string;
         title: string;
         href: string;
@@ -848,20 +881,47 @@ const Stage = ({ board }: { board: Board }) => {
         }
       }
 
-      // A drifting bug that brushes a citadel's base catches the beam up.
+      // THE TRACTOR LANE. A drifting bug anywhere along the pulsing lane
+      // (base to lane end, 220px corridor) is caught. The old rule, 260px
+      // around the base point itself, was proven unreachable for 14 of 21
+      // citadels: the ring stands 1000-2200px off the coast and a bare
+      // jump's air dies first. Now the light comes down to where the bug
+      // can actually get.
       if (beamCooldownRef.current > 0) beamCooldownRef.current -= dt;
       if (!ride && p.mode === 'drift' && beamCooldownRef.current <= 0) {
         for (const wt of witnessVisualsRef.current) {
-          if (Math.hypot(wt.x - p.x, wt.y - p.y) > 260) continue;
+          if (wt.laneX === undefined || wt.laneY === undefined) continue;
+          // Distance from the bug to the lane segment (base to lane end).
+          const ax = wt.x;
+          const ay = wt.y;
+          const bx = wt.laneX;
+          const by = wt.laneY;
+          const abx = bx - ax;
+          const aby = by - ay;
+          const len2 = abx * abx + aby * aby;
+          const u = Math.max(0, Math.min(1, ((p.x - ax) * abx + (p.y - ay) * aby) / len2));
+          const cx = ax + abx * u;
+          const cy = ay + aby * u;
+          if (Math.hypot(p.x - cx, p.y - cy) > 220) continue;
           const towerH = 1680 - (wt.rank - 1) * 22;
+          const glide = Math.hypot(cx - ax, cy - ay);
+          const climb = towerH * 0.87;
           rideRef.current = {
             type: 'beam',
+            gx: cx,
+            gy: cy,
             x: wt.x,
             baseY: wt.y,
-            topY: wt.y - towerH * 0.87,
+            topY: wt.y - climb,
+            glide,
+            climb,
+            // Long lanes take longer, so the carry always reads as travel:
+            // roughly 700px/s with a floor.
+            dur: Math.max(1.6, (glide + climb) / 700),
             t: 0,
             dir: 1,
             dwell: 1.4,
+            met: false,
             name: wt.name,
             title: `${wt.rank}. ${wt.name}`,
             href: profileHref(wt.name)
@@ -869,20 +929,22 @@ const Stage = ({ board }: { board: Board }) => {
           break;
         }
       }
-      // The beam is a ROUND TRIP: up to the crown, meet the witness (the
-      // card opens with their real stats), pause, then ride back down and
-      // hand the drift back with the air topped up. The first version
-      // yanked the bug home across the map instead, which read as dying.
+      // The beam is a ROUND TRIP: caught in the lane, glided to the base,
+      // carried up to the crown where the witness card opens with their real
+      // stats, a pause, then back down to the exact grab point, and the
+      // drift resumes with the air topped up. The first version yanked the
+      // bug home across the map instead, which read as dying.
       if (rideRef.current?.type === 'beam') {
         const beam = rideRef.current;
         if (beam.dir === 1 && beam.t >= 1) {
-          if (beam.dwell === 1.4) {
+          if (!beam.met) {
+            beam.met = true;
             setClickedWitness({ title: beam.title, href: beam.href, stats: witnessStats(beam.name) });
           }
           beam.dwell -= dt;
           if (beam.dwell <= 0) beam.dir = -1;
         } else {
-          beam.t = Math.max(0, Math.min(1, beam.t + (dt / 2.2) * beam.dir));
+          beam.t = Math.max(0, Math.min(1, beam.t + (dt / beam.dur) * beam.dir));
           if (beam.dir === -1 && beam.t <= 0) {
             rideRef.current = null;
             beamCooldownRef.current = 5;
@@ -906,8 +968,16 @@ const Stage = ({ board }: { board: Board }) => {
             y: rd.cy + Math.sin(a) * wheelRadius + wheelRadius * 0.17
           };
         }
+        // Piecewise beam path: glide along the lane to the base, then climb
+        // the tower. One eased parameter covers the whole distance.
         const ease = rd.t * rd.t * (3 - 2 * rd.t);
-        return { x: rd.x, y: rd.baseY + (rd.topY - rd.baseY) * ease };
+        const d = ease * (rd.glide + rd.climb);
+        if (d < rd.glide && rd.glide > 0) {
+          const u = d / rd.glide;
+          return { x: rd.gx + (rd.x - rd.gx) * u, y: rd.gy + (rd.baseY - rd.gy) * u };
+        }
+        const u = rd.climb > 0 ? (d - rd.glide) / rd.climb : 1;
+        return { x: rd.x, y: rd.baseY + (rd.topY - rd.baseY) * u };
       })();
 
       // YOU ARE HERE: which community bubble the bug is standing in. Bubbles
