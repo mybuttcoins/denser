@@ -409,12 +409,41 @@ export function drawScene(scene: RenderScene): void {
     }
   }
 
+  // NEBULAE: two vast, faint clouds so the void reads as space instead of
+  // unfinished black. Fixed world positions, one violet behind the north-east
+  // citadels, one deep teal in the south-west sea. Two gradient fills, drawn
+  // under the land; the darkening overlay below dims them a little, which the
+  // alphas here already account for.
+  for (const [nx, ny, nr, colIn] of [
+    [6200, -5200, 3400, 'rgba(72, 40, 130, 0.42)'],
+    [-6300, 4400, 3800, 'rgba(16, 70, 96, 0.38)']
+  ] as const) {
+    if (nx + nr < vx0 || nx - nr > vx1 || ny + nr < vy0 || ny - nr > vy1) continue;
+    const neb = ctx.createRadialGradient(nx, ny, nr * 0.1, nx, ny, nr);
+    neb.addColorStop(0, colIn);
+    neb.addColorStop(1, 'rgba(10, 6, 20, 0)');
+    ctx.fillStyle = neb;
+    ctx.beginPath();
+    ctx.arc(nx, ny, nr, 0, 6.283);
+    ctx.fill();
+  }
+
   // THE GROUND. Filled landmasses, drawn over the void (and over the stars and
   // fish, which belong to the open water) and under everything else. The
   // geometry was built once per window; this only fills stored paths, culled
   // to the viewport.
   if (scene.ground) {
     drawGround(ctx, scene.ground, vx0, vy0, vx1, vy1, z);
+  }
+
+  // VALUE HIERARCHY: at map zoom the land used to be the brightest large
+  // surface on screen, which inverted the whole picture: the ground shouted
+  // and everything standing on it whispered. One viewport rect pulls the
+  // world down toward deep wine as the camera pulls out, so routes, landmarks
+  // and the ring get the contrast back. Play zoom is untouched (mapness 0).
+  if (mapness > 0.05) {
+    ctx.fillStyle = `rgba(12, 2, 6, ${(0.34 * mapness).toFixed(3)})`;
+    ctx.fillRect(vx0, vy0, vx1 - vx0, vy1 - vy0);
   }
 
   // Rock formations: spiky crystal clutches standing on the terrain, under
@@ -495,7 +524,11 @@ export function drawScene(scene: RenderScene): void {
     const streetW = (kind === 'mesh' ? 4.4 : 4.0) * (z < 0.12 ? 0.55 : 1);
     ctx.lineWidth = streetW / Math.max(z, 0.05);
     const breathe = 0.08 * Math.sin(time * 1.4 + (kind === 'mesh' ? 0 : 1.1));
-    ctx.globalAlpha = (kind === 'mesh' ? 0.74 : 0.68) + breathe;
+    // Streets FADE OUT as the camera pulls out: at map height they carried no
+    // information and were most of the visual noise, pale cracks all over the
+    // land. Full alpha where you ride, whispers on the pulled-out map, where
+    // the two named lines should be the only lines that speak.
+    ctx.globalAlpha = ((kind === 'mesh' ? 0.74 : 0.68) + breathe) * (1 - mapness * 0.8);
     for (const e of edges) {
       if (e.kind !== kind || !edgeVis(e)) continue;
       strokeEdge(e);
@@ -525,11 +558,19 @@ export function drawScene(scene: RenderScene): void {
     // streets, so the whole network reads as circulating rather than static.
     const routeBreathe = 1 + 0.09 * Math.sin(time * 1.8 + layerPhase);
     layerPhase += 2.1;
+    // At map zoom the line keeps its CASING: a dark edge is the one signal
+    // that says "designed transit route" instead of "loose wire", and it is
+    // what stops the long line reading as a scribble. The always-on glow pass
+    // is dimmed everywhere; the travelling electricity is the line's life
+    // now, and a glow that never rests is just noise.
     const passes = routeLod
-      ? [{ col: layer.core, w: layer.width * 1.5, a: 1 }]
+      ? [
+          { col: layer.casing, w: layer.width * 1.55, a: 0.9 },
+          { col: layer.core, w: layer.width * 1.15, a: 1 }
+        ]
       : [
           { col: layer.casing, w: layer.width * 1.98, a: 0.85 },
-          { col: layer.glow, w: layer.width * 1.47, a: 0.3 },
+          { col: layer.glow, w: layer.width * 1.47, a: 0.18 },
           { col: layer.core, w: layer.width, a: 1 }
         ];
     if (layer.dash) ctx.setLineDash(layer.dash.map((d) => d / Math.max(z, 0.05)));
@@ -804,7 +845,34 @@ export function drawScene(scene: RenderScene): void {
     // Bigger than before: with the names gone the art has to carry identity
     // on its own, so an ordinary marker grew from 36 to 52 and the minor
     // paperwork from 24 to 34.
-    const s = lm.big ? (BIG_SIZE[lm.icon] ?? 300) : (minor ? 34 : 52) / Math.max(z, 0.45);
+    // CARTOGRAPHIC EXAGGERATION: theme-park maps lie about scale. The big
+    // places grow up to 1.9x as the camera pulls out, so at full map they
+    // read as attractions instead of specks, and shrink back to honest size
+    // as you fly in. This one factor is most of the difference between
+    // "illustrated park map" and "network diagram".
+    const bigScale = 1 + mapness * 0.9;
+    const s = lm.big
+      ? (BIG_SIZE[lm.icon] ?? 300) * bigScale
+      : (minor ? 34 : 52) / Math.max(z, 0.45);
+    // GROUND PAD: a dark clearing under each big place, fading in with the
+    // map. Anchors the attraction to the land (park maps sit rides in
+    // plazas) and buys silhouette contrast against the busy red.
+    if (lm.big) {
+      const padR = s * 1.35;
+      const padY = n.y + s * 0.5;
+      ctx.globalAlpha = 0.1 + mapness * 0.3;
+      ctx.fillStyle = '#20060c';
+      ctx.beginPath();
+      ctx.ellipse(n.x, padY, padR, padR * 0.42, 0, 0, 6.283);
+      ctx.fill();
+      ctx.globalAlpha = 0.08 + mapness * 0.18;
+      ctx.strokeStyle = '#ff6a5a';
+      ctx.lineWidth = 3 / Math.max(z, 0.05);
+      ctx.beginPath();
+      ctx.ellipse(n.x, padY, padR, padR * 0.42, 0, 0, 6.283);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
     // The black hole is the one big place that must NOT look welcoming, so it
     // is the one that does not get the warm pool.
     if (lm.big && lm.icon !== 'blackhole') {
@@ -971,6 +1039,17 @@ export function drawScene(scene: RenderScene): void {
 
   ctx.restore();
 
+  // VIGNETTE, screen space, map zoom only: darkened corners pull the eye
+  // into the world and hide the dead frame edges the citadel ring cannot
+  // fill. One radial gradient; play zoom stays clean.
+  if (mapness > 0.1) {
+    const vg = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.45, W / 2, H / 2, Math.max(W, H) * 0.75);
+    vg.addColorStop(0, 'rgba(0, 0, 0, 0)');
+    vg.addColorStop(1, `rgba(0, 0, 0, ${(0.38 * mapness).toFixed(3)})`);
+    ctx.fillStyle = vg;
+    ctx.fillRect(0, 0, W, H);
+  }
+
   drawHud(scene);
 }
 
@@ -1011,6 +1090,20 @@ function drawCube(ctx: CanvasRenderingContext2D, c: Cube): void {
 
 function drawHud(scene: RenderScene): void {
   const { ctx, hud } = scene;
+  // Scrim behind the readout so the text never fights the world under it.
+  const lines = hud.placesLabel !== undefined ? 5 : 4;
+  ctx.fillStyle = 'rgba(10, 5, 16, 0.65)';
+  ctx.beginPath();
+  const sw = 190;
+  const sh = 14 + lines * 19;
+  const rr = 10;
+  ctx.moveTo(8 + rr, 6);
+  ctx.arcTo(8 + sw, 6, 8 + sw, 6 + sh, rr);
+  ctx.arcTo(8 + sw, 6 + sh, 8, 6 + sh, rr);
+  ctx.arcTo(8, 6 + sh, 8, 6, rr);
+  ctx.arcTo(8, 6, 8 + sw, 6, rr);
+  ctx.closePath();
+  ctx.fill();
   ctx.textAlign = 'left';
   ctx.textBaseline = 'top';
   ctx.font = `600 13px ${MONO}`;
