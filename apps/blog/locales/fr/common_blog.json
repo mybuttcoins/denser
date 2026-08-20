@@ -791,7 +791,8 @@
       "skip": "Passer",
       "nothing_here": "Rien ici pour le moment. Cet endroit ouvrira plus tard.",
       "real_games": "Vrais jeux sur Hive",
-      "dapps": "dApps de l univers Hive"
+      "dapps": "dApps de l univers Hive",
+      "buzzing": "Ca bourdonne aujourd hui : les jetons comptent double ici"
     },
     "landmarks": {
       "search": "Rechercher",
@@ -801,13 +802,15 @@
       "arcade": "Arcade",
       "healthchecker": "Healthchecker",
       "json_keep": "Emperor J SON",
-      "mount_socko": "Mount Socko"
+      "mount_socko": "Mount Socko",
+      "steem_ruins": "Ruines de Steem"
     },
     "hud": {
       "houses": "MAISONS",
       "window": "FENÊTRE",
       "tokens": "JETONS",
-      "helmets": "CASQUES"
+      "helmets": "CASQUES",
+      "places": "LIEUX"
     },
     "map": {
       "hint": "Touchez un lieu pour vous y rendre",

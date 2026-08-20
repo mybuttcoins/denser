@@ -791,7 +791,8 @@
       "skip": "スキップ",
       "nothing_here": "ここにはまだ何もありません。後で開きます。",
       "real_games": "Hiveの実際のゲーム",
-      "dapps": "Hiveユニバースのアプリ"
+      "dapps": "Hiveユニバースのアプリ",
+      "buzzing": "本日ブンブン: ここのトークンは2倍"
     },
     "landmarks": {
       "search": "検索",
@@ -801,13 +802,15 @@
       "arcade": "アーケード",
       "healthchecker": "Healthchecker",
       "json_keep": "Emperor J SON",
-      "mount_socko": "Mount Socko"
+      "mount_socko": "Mount Socko",
+      "steem_ruins": "Steemの廃墟"
     },
     "hud": {
       "houses": "家",
       "window": "ウィンドウ",
       "tokens": "トークン",
-      "helmets": "ヘルメット"
+      "helmets": "ヘルメット",
+      "places": "場所"
     },
     "map": {
       "hint": "ランドマークをタップして移動",

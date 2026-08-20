@@ -163,6 +163,13 @@ unmistakably a sock: snow for a cuff, a darned heel, two slanted lights near
 the summit. It is where enveloped bugs get posted, visible from the full map
 so the displaced can see how far from home they are.
 
+**The Steem Ruins** lie in the western void, deliberately opposite the
+Emperor's keep: a dead grey district with a citadel snapped mid-height, dark
+houses that never light, and a rusted rail that runs toward the living world
+and simply stops. That break is the fork. The ruins' one link is the real
+2020 post announcing the launch of Hive: the game's history lesson, told as
+geography, with a receipt.
+
 Rides are the friendly half of the same idea. One full rotation on the DHF
 ferris wheel earns a breath of **spare air** (a whole extra ring on one jump,
 then spent). Drifting against a witness citadel catches the light beam: a
@@ -202,10 +209,20 @@ studied rather than guessed at:
   a grudge.
 - **Travel itself pays** (Odyssey's reward density): tokens, helmets and
   rides are scattered ON the way between places, so movement is never empty.
+- **A daily draw** (live-game rotations): the BUZZING STATION. One landmark a
+  day, picked deterministically from the UTC day number so every player sees
+  the same pick with no backend, hums in gold and pays double tokens inside
+  its ring. Tomorrow it moves; the trap and the endgame never buzz.
+- **Completionism is the cheapest loop there is**: the PLACES counter in the
+  HUD tracks named places visited, persisted permanently. Parking at a
+  landmark marks it forever.
+- **Environmental storytelling over exposition** (Hollow Knight): the Steem
+  Ruins say everything about the fork without a line of dialogue.
 
-Candidates deliberately left for later passes: a rotating "buzzing station"
-paying double from a date hash, visit-A-then-B destination tickets (Ticket to
-Ride), a map-completion counter, and Steem ruins as environmental storytelling.
+Candidates deliberately left for later passes: visit-A-then-B destination
+tickets (Ticket to Ride), an HPUD festival on the 1st of each month, chain
+weather (busy windows visibly crowd the world), and badge-shaped achievements
+in the HiveBuzz idiom.
 
 ## Status
 

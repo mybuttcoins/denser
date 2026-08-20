@@ -791,7 +791,8 @@
       "skip": "Omitir",
       "nothing_here": "Aquí no hay nada todavía. Este lugar abrirá más adelante.",
       "real_games": "Juegos reales en Hive",
-      "dapps": "dApps del universo Hive"
+      "dapps": "dApps del universo Hive",
+      "buzzing": "Hoy zumba: los tokens aqui cuentan doble"
     },
     "landmarks": {
       "search": "Buscar",
@@ -801,13 +802,15 @@
       "arcade": "Arcade",
       "healthchecker": "Healthchecker",
       "json_keep": "Emperor J SON",
-      "mount_socko": "Mount Socko"
+      "mount_socko": "Mount Socko",
+      "steem_ruins": "Ruinas de Steem"
     },
     "hud": {
       "houses": "CASAS",
       "window": "VENTANA",
       "tokens": "FICHAS",
-      "helmets": "CASCOS"
+      "helmets": "CASCOS",
+      "places": "LUGARES"
     },
     "map": {
       "hint": "Toca un lugar para viajar allí",

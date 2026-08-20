@@ -796,7 +796,8 @@
       "skip": "Pomiń",
       "nothing_here": "Tu jeszcze nic nie ma. To miejsce otworzy się później.",
       "real_games": "Prawdziwe gry na Hive",
-      "dapps": "dAppy uniwersum Hive"
+      "dapps": "dAppy uniwersum Hive",
+      "buzzing": "Dzis buczy: tokeny licza sie tu podwojnie"
     },
     "landmarks": {
       "search": "Szukaj",
@@ -806,13 +807,15 @@
       "arcade": "Salon gier",
       "healthchecker": "Healthchecker",
       "json_keep": "Emperor J SON",
-      "mount_socko": "Mount Socko"
+      "mount_socko": "Mount Socko",
+      "steem_ruins": "Ruiny Steem"
     },
     "hud": {
       "houses": "DOMY",
       "window": "OKNO",
       "tokens": "ŻETONY",
-      "helmets": "HEŁMY"
+      "helmets": "HEŁMY",
+      "places": "MIEJSCA"
     },
     "map": {
       "hint": "Dotknij miejsca, aby tam podróżować",

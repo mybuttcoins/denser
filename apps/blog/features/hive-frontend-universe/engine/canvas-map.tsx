@@ -29,8 +29,11 @@ import {
   TROLL_HOLES,
   ARCADE_GAMES,
   DAPP_DIRECTORY,
+  STEEM_RUINS,
   witnessPosts
 } from '../lib/fixed-world';
+import { mulberry32 } from '../lib/mesh';
+import { getStorageItem, setStorageItem, StorageTTL } from '@ui/lib/storage-with-ttl';
 import { buildRoutes, POST_LINE_ID, DAPPS_LINE_ID } from '../lib/routes';
 import {
   landmarkHref,
@@ -298,6 +301,27 @@ const Stage = ({ board }: { board: Board }) => {
   const inCommunityTick = useRef(-1);
   const mKeyDownAt = useRef(0);
 
+  /**
+   * THE BUZZING STATION: one landmark a day pays double tokens. Picked from
+   * the UTC day number alone, no backend: every player sees the same pick,
+   * and tomorrow it moves. The trap and the endgame are excluded; the buzz
+   * is an invitation, not an ambush.
+   */
+  const buzz = useMemo(() => {
+    const eligible = LANDMARKS.map((lm, i) => ({ lm, i })).filter(
+      ({ lm }) => lm.id !== 'json_keep' && lm.id !== 'mount_socko'
+    );
+    const day = Math.floor(Date.now() / 86400000);
+    const pick = eligible[Math.floor(mulberry32((day ^ 0xb22e) | 0)() * eligible.length)];
+    const node = world.landmarkNodeByIndex[pick.i] ?? -1;
+    if (node < 0) return null;
+    const n = world.nodes[node];
+    return { x: n.x, y: n.y, r: 1100, landmarkId: pick.lm.id };
+  }, [world]);
+
+  /** Named places visited, persisted forever: the map-completion loop. */
+  const visitedRef = useRef<Set<string> | null>(null);
+
   const factories = useMemo(() => placeFactories(world, board.windowStart), [world, board.windowStart]);
   const cubes = useMemo(() => placeCubes(world, board.windowStart), [world, board.windowStart]);
   const formations = useMemo(() => placeFormations(world, board.windowStart), [world, board.windowStart]);
@@ -346,6 +370,9 @@ const Stage = ({ board }: { board: Board }) => {
     coinsRef.current = createCoins(world, board.counts.customJson, board.windowStart);
     helmetsRef.current = createHelmets();
     hazardsRef.current = createHazards(crittersRef.current.critters.length);
+    if (!visitedRef.current) {
+      visitedRef.current = new Set(getStorageItem<string[]>('hfu-visited') ?? []);
+    }
 
     // Spawn just inside the mesh beside the Basecamp landmark.
     const basecampIdx = LANDMARKS.findIndex((lm) => lm.id === 'basecamp');
@@ -541,6 +568,21 @@ const Stage = ({ board }: { board: Board }) => {
           towerH * 0.45
         );
       }
+
+      // The Steem Ruins: scenery like the citadels, with exactly one link
+      // out of them: the real 2020 announcement of the fork that left them.
+      consider(
+        {
+          kind: 'witness',
+          node: -1,
+          title: t('hive_frontend_universe.landmarks.steem_ruins'),
+          href: STEEM_RUINS.url,
+          travelable: false,
+          x: STEEM_RUINS.x,
+          y: STEEM_RUINS.y
+        },
+        700
+      );
       return best;
     };
 
@@ -758,7 +800,7 @@ const Stage = ({ board }: { board: Board }) => {
       }
       // The HUD is painted on the canvas every frame, so the token counts
       // need no React state to stay current.
-      if (coinsRef.current) updateCoins(coinsRef.current, p, crittersRef.current, factories, TROLL_HOLES, dt);
+      if (coinsRef.current) updateCoins(coinsRef.current, p, crittersRef.current, factories, TROLL_HOLES, dt, buzz);
       if (helmetsRef.current) updateHelmets(helmetsRef.current, p.x, p.y);
       requestNearbyAvatars(dt);
       camUpdate(dt);
@@ -766,6 +808,15 @@ const Stage = ({ board }: { board: Board }) => {
       if (p.atNode !== atNodeTick.current) {
         atNodeTick.current = p.atNode;
         setAtNode(p.atNode);
+        // Map completion: parking at a named place marks it visited, forever.
+        const vn = p.atNode >= 0 ? nodes[p.atNode] : undefined;
+        if (vn?.kind === 'landmark' && visitedRef.current) {
+          const id = LANDMARKS[vn.ref]?.id;
+          if (id && !visitedRef.current.has(id)) {
+            visitedRef.current.add(id);
+            setStorageItem('hfu-visited', Array.from(visitedRef.current), StorageTTL.PERMANENT);
+          }
+        }
       }
 
       // ---- RIDES: cosmetic transport, physics untouched. ----
@@ -909,6 +960,7 @@ const Stage = ({ board }: { board: Board }) => {
         helmetState: helmetsRef.current,
         rideOverlay: overlayPos,
         hazards: hazardsRef.current,
+        buzz,
         ground,
         activeCommunity: inCommunityTick.current,
         player: p,
@@ -920,6 +972,9 @@ const Stage = ({ board }: { board: Board }) => {
           helmetsLabel: t('hive_frontend_universe.hud.helmets'),
           helmets: helmetsRef.current?.count ?? 0,
           helmetTotal: HELMET_TOTAL,
+          placesLabel: t('hive_frontend_universe.hud.places'),
+          places: visitedRef.current?.size ?? 0,
+          placesTotal: LANDMARKS.length,
           tokensLabel: t('hive_frontend_universe.hud.tokens'),
           carried: coinsRef.current?.carried ?? 0,
           banked: coinsRef.current?.banked ?? 0,
@@ -1076,6 +1131,11 @@ const Stage = ({ board }: { board: Board }) => {
             atLandmark.id === 'arcade'
               ? t('hive_frontend_universe.panel.real_games')
               : t('hive_frontend_universe.panel.dapps')
+          }
+          note={
+            buzz && atLandmark.id === buzz.landmarkId
+              ? t('hive_frontend_universe.panel.buzzing')
+              : undefined
           }
           onSkip={skip}
         />

@@ -838,7 +838,8 @@
       "skip": "تخط",
       "nothing_here": "لا يوجد شيء هنا بعد. سيفتح هذا المكان لاحقًا.",
       "real_games": "ألعاب حقيقية على Hive",
-      "dapps": "تطبيقات عالم Hive"
+      "dapps": "تطبيقات عالم Hive",
+      "buzzing": "يطن اليوم: الرموز هنا تحسب مضاعفة"
     },
     "landmarks": {
       "search": "بحث",
@@ -848,13 +849,15 @@
       "arcade": "أركيد",
       "healthchecker": "Healthchecker",
       "json_keep": "Emperor J SON",
-      "mount_socko": "Mount Socko"
+      "mount_socko": "Mount Socko",
+      "steem_ruins": "أطلال Steem"
     },
     "hud": {
       "houses": "المنازل",
       "window": "النافذة",
       "tokens": "رموز",
-      "helmets": "خوذات"
+      "helmets": "خوذات",
+      "places": "أماكن"
     },
     "map": {
       "hint": "انقر على معلم للسفر إليه",

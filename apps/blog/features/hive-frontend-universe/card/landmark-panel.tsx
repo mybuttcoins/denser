@@ -36,10 +36,22 @@ export interface LandmarkPanelProps {
   linksLabel?: string;
   /** Small labelled rows of real numbers (a witness visit's chain stats). */
   stats?: { label: string; value: string }[];
+  /** One highlighted line of news (today's buzzing station says so here). */
+  note?: string;
   onSkip: () => void;
 }
 
-export const LandmarkPanel = ({ title, kind, path, accent, links, linksLabel, stats, onSkip }: LandmarkPanelProps) => {
+export const LandmarkPanel = ({
+  title,
+  kind,
+  path,
+  accent,
+  links,
+  linksLabel,
+  stats,
+  note,
+  onSkip
+}: LandmarkPanelProps) => {
   const { t } = useTranslation('common_blog');
   const href = landmarkHref(kind, path);
   const color = ACCENT_HEX[accent] ?? '#5EE9D5';
@@ -57,6 +69,11 @@ export const LandmarkPanel = ({ title, kind, path, accent, links, linksLabel, st
         </div>
         {href === null && !stats?.length ? (
           <p className="mb-3 text-sm text-[#8fa6b4]">{t('hive_frontend_universe.panel.nothing_here')}</p>
+        ) : null}
+        {note ? (
+          <p className="mb-3 font-mono text-xs font-semibold text-[#ffd24a]" data-testid="hfu-panel-note">
+            {note}
+          </p>
         ) : null}
         {stats?.length ? (
           <dl className="mb-3 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1" data-testid="hfu-witness-stats">

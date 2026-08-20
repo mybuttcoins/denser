@@ -22,7 +22,7 @@ import { posAt } from './movement';
 import type { Factory, Cube, Formation } from './scenery';
 import type { FlowParticle } from './particles';
 import type { CritterState } from './critters';
-import { TROLL_HOLES, type LandmarkCategory, type IconKey } from '../lib/fixed-world';
+import { TROLL_HOLES, STEEM_RUINS, type LandmarkCategory, type IconKey } from '../lib/fixed-world';
 import {
   drawIcon,
   drawFish,
@@ -30,7 +30,8 @@ import {
   drawFormation,
   drawCommunityEmblem,
   drawWitnessCitadel,
-  drawTrollHole
+  drawTrollHole,
+  drawSteemRuins
 } from './icons';
 import { drawCritters } from './critters';
 import { drawCoins, type CoinState } from './coins';
@@ -275,6 +276,12 @@ export interface RenderScene {
   shake?: number;
   /** Warp effect countdown, 1 → 0. */
   warpFx?: number;
+  /**
+   * The day's buzzing station zone, or null. Chosen deterministically from
+   * the UTC date by the caller; tokens inside count double (coins.ts) and
+   * the zone hums visibly here.
+   */
+  buzz?: { x: number; y: number; r: number } | null;
   hud: {
     housesLabel: string;
     windowLabel: string;
@@ -286,6 +293,10 @@ export interface RenderScene {
     helmetsLabel: string;
     helmets: number;
     helmetTotal: number;
+    /** Map completion: named places visited. Optional so old scenes render. */
+    placesLabel?: string;
+    places?: number;
+    placesTotal?: number;
   };
 }
 
@@ -439,11 +450,17 @@ export function drawScene(scene: RenderScene): void {
     );
   }
 
-  // The Mighty J SON's troll holes, sunk into the terrain. The keep is a
+  // Emperor J SON's troll holes, sunk into the terrain. The keep is a
   // landmark and draws itself; these are the in-land mouths of his network.
   for (const hole of TROLL_HOLES) {
     if (hole.id === 'json_keep' || !vis(hole.x, hole.y)) continue;
     drawTrollHole(ctx, hole.x, hole.y, time);
+  }
+
+  // THE STEEM RUINS: the old chain, dead and grey in the western void.
+  // Scenery with a story; the hover chip and click live in canvas-map.
+  if (vis(STEEM_RUINS.x, STEEM_RUINS.y)) {
+    drawSteemRuins(ctx, STEEM_RUINS.x, STEEM_RUINS.y, 300, time);
   }
 
   // Cubes: transparent, colourful, under the lines for depth.
@@ -740,6 +757,38 @@ export function drawScene(scene: RenderScene): void {
     }
   }
 
+  // THE BUZZING STATION: today's double-token zone, humming in gold. Two
+  // breathing rings and a swarm of little bee motes orbiting the boundary,
+  // loud enough to read from the pulled-out map so the day's draw is visible
+  // the moment the world is.
+  if (scene.buzz) {
+    const b = scene.buzz;
+    const hum = 0.5 + Math.sin(time * 2.4) * 0.5;
+    ctx.strokeStyle = '#ffd24a';
+    for (const [mul, w, a] of [
+      [1, 5, 0.5],
+      [0.82 + hum * 0.06, 2.6, 0.35]
+    ] as const) {
+      ctx.globalAlpha = a + hum * 0.25;
+      ctx.lineWidth = w / Math.max(z, 0.05);
+      ctx.beginPath();
+      ctx.arc(b.x, b.y, b.r * mul, 0, 6.283);
+      ctx.stroke();
+    }
+    for (let k = 0; k < 7; k++) {
+      const a = time * (0.5 + (k % 3) * 0.14) + (k / 7) * 6.283;
+      const br = b.r * (0.94 + Math.sin(time * 3 + k * 2.1) * 0.05);
+      const bx = b.x + Math.cos(a) * br;
+      const by = b.y + Math.sin(a) * br * 0.97;
+      ctx.globalAlpha = 0.85;
+      ctx.fillStyle = k % 2 ? '#ffd24a' : '#fff3c0';
+      ctx.beginPath();
+      ctx.arc(bx, by, 9 / Math.max(z, 0.12), 0, 6.283);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+
   // Landmarks: every type its own vector icon; the destination worlds are
   // drawn as structures so arriving feels like arriving somewhere.
   for (const n of nodes) {
@@ -973,6 +1022,10 @@ function drawHud(scene: RenderScene): void {
   ctx.fillText(`${hud.tokensLabel} ${hud.carried} / ${hud.banked}`, 16, 52);
   ctx.fillStyle = '#9be8ff';
   ctx.fillText(`${hud.helmetsLabel} ${hud.helmets} / ${hud.helmetTotal}`, 16, 71);
+  if (hud.placesLabel !== undefined) {
+    ctx.fillStyle = '#b8ffd2';
+    ctx.fillText(`${hud.placesLabel} ${hud.places} / ${hud.placesTotal}`, 16, 90);
+  }
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
 }

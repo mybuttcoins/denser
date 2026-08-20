@@ -380,6 +380,20 @@ export function witnessPosts(count: number): WitnessPost[] {
  * coast. Each hugs a coast closely enough for the world builder to sling a
  * rail spoke to it. Move a community by editing its line.
  */
+/**
+ * THE STEEM RUINS: the old chain, drawn as a dead grey district out in the
+ * western void, deliberately opposite Emperor J SON's keep in the south-east.
+ * Environmental storytelling only: no node, no travel, nothing to collect.
+ * Hover names it and the click leads to the REAL 2020 fork announcement post
+ * (verified alive before this landed), so the one link out of the ruins is
+ * the moment the community left them.
+ */
+export const STEEM_RUINS = {
+  x: -6300,
+  y: 1800,
+  url: 'https://hive.blog/communityfork/@hiveio/announcing-the-launch-of-hive-blockchain'
+} as const;
+
 export const COMMUNITY_SPOTS: readonly { slot: number; x: number; y: number }[] = [
   { slot: 0, x: -5600, y: 300 }, // west of the diamond
   { slot: 1, x: -4400, y: -3500 }, // north-west

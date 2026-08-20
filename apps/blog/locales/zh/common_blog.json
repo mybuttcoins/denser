@@ -791,7 +791,8 @@
       "skip": "跳过",
       "nothing_here": "这里还没有内容,稍后开放。",
       "real_games": "Hive 上的真实游戏",
-      "dapps": "Hive 宇宙的应用"
+      "dapps": "Hive 宇宙的应用",
+      "buzzing": "今日嗡嗡: 这里的代币加倍"
     },
     "landmarks": {
       "search": "搜索",
@@ -801,13 +802,15 @@
       "arcade": "街机厅",
       "healthchecker": "Healthchecker",
       "json_keep": "Emperor J SON",
-      "mount_socko": "Mount Socko"
+      "mount_socko": "Mount Socko",
+      "steem_ruins": "Steem废墟"
     },
     "hud": {
       "houses": "房屋",
       "window": "窗口",
       "tokens": "代币",
-      "helmets": "头盔"
+      "helmets": "头盔",
+      "places": "地点"
     },
     "map": {
       "hint": "点按地标即可前往",

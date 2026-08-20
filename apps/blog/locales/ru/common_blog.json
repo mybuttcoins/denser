@@ -797,7 +797,8 @@
       "skip": "Пропустить",
       "nothing_here": "Здесь пока ничего нет. Это место откроется позже.",
       "real_games": "Настоящие игры на Hive",
-      "dapps": "dApps вселенной Hive"
+      "dapps": "dApps вселенной Hive",
+      "buzzing": "Сегодня жужжит: токены здесь считаются вдвойне"
     },
     "landmarks": {
       "search": "Поиск",
@@ -807,13 +808,15 @@
       "arcade": "Аркада",
       "healthchecker": "Healthchecker",
       "json_keep": "Emperor J SON",
-      "mount_socko": "Mount Socko"
+      "mount_socko": "Mount Socko",
+      "steem_ruins": "Руины Steem"
     },
     "hud": {
       "houses": "ДОМА",
       "window": "ОКНО",
       "tokens": "ТОКЕНЫ",
-      "helmets": "ШЛЕМЫ"
+      "helmets": "ШЛЕМЫ",
+      "places": "МЕСТА"
     },
     "map": {
       "hint": "Нажмите на место, чтобы отправиться туда",

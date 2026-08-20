@@ -157,10 +157,20 @@ export function createCoins(world: GameWorld, customJsonOps: number, seed: numbe
   };
 }
 
-/** Somewhere a thief can dump its loot: the Mighty J SON's troll holes. */
+/** Somewhere a thief can dump its loot: Emperor J SON's troll holes. */
 export interface Lair {
   x: number;
   y: number;
+}
+
+/**
+ * The day's BUZZING STATION: tokens picked up inside its radius count double.
+ * Chosen by the caller (deterministically from the date), null when none.
+ */
+export interface BuzzZone {
+  x: number;
+  y: number;
+  r: number;
 }
 
 export function updateCoins(
@@ -169,7 +179,8 @@ export function updateCoins(
   critters: CritterState | null,
   factories: Factory[],
   lairs: readonly Lair[],
-  dt: number
+  dt: number,
+  buzz: BuzzZone | null = null
 ): void {
   if (state.drained > 0) state.drained = Math.max(0, state.drained - dt);
   if (state.bankFlash > 0) state.bankFlash = Math.max(0, state.bankFlash - dt);
@@ -182,7 +193,8 @@ export function updateCoins(
     state.graceByCritter = new Array(critters.critters.length).fill(0);
   }
 
-  // COLLECT.
+  // COLLECT. Inside the day's buzzing station a token counts double: the
+  // token itself plus the station's bonus, which is the whole daily draw.
   const pickup2 = PICKUP * PICKUP;
   for (const c of state.coins) {
     if (c.taken) continue;
@@ -190,7 +202,8 @@ export function updateCoins(
     const dy = c.y - player.y;
     if (dx * dx + dy * dy <= pickup2) {
       c.taken = true;
-      state.carried++;
+      const buzzed = buzz && Math.hypot(c.x - buzz.x, c.y - buzz.y) <= buzz.r;
+      state.carried += buzzed ? 2 : 1;
     }
   }
 

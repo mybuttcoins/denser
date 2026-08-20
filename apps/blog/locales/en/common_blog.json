@@ -893,7 +893,8 @@
       "skip": "Skip",
       "nothing_here": "Nothing here yet. This place opens later.",
       "real_games": "Real games on Hive",
-      "dapps": "dApps of the Hive universe"
+      "dapps": "dApps of the Hive universe",
+      "buzzing": "Buzzing today: tokens here count double"
     },
     "landmarks": {
       "search": "Search",
@@ -903,13 +904,15 @@
       "arcade": "Arcade",
       "healthchecker": "Healthchecker",
       "json_keep": "Emperor J SON",
-      "mount_socko": "Mount Socko"
+      "mount_socko": "Mount Socko",
+      "steem_ruins": "Steem Ruins"
     },
     "hud": {
       "houses": "HOUSES",
       "window": "WINDOW",
       "tokens": "TOKENS",
-      "helmets": "HELMETS"
+      "helmets": "HELMETS",
+      "places": "PLACES"
     },
     "map": {
       "hint": "Tap a landmark to travel there",
