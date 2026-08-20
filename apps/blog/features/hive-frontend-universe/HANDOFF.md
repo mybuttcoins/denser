@@ -217,10 +217,10 @@ nothing.
 Per the handoff rules, Part B below is preserved verbatim; these notes flag
 the differences rather than editing it.
 
-1. SPELLING. Part B's lore says "Emperor J Son". The code and all nine
-   locales say "Emperor J SON" (and several older code comments still say
-   "the Mighty J SON"). One spelling should win; today the players see
-   "Emperor J SON".
+1. SPELLING, RESOLVED 2026-08-20. Part B's lore now says "Emperor J SON",
+   matching the code and all nine locales. Residual only: several older
+   code comments still say "the Mighty J SON"; comments are never rendered,
+   cosmetic cleanup whenever those files are next touched.
 2. THE THREE VIRTUES (Power red, Wisdom blue, Courage green) exist nowhere
    in the code. The tier colours in lib/board.ts are stake tiers, not
    virtues, and no all-power-heart mechanic exists. This is intent, not yet
@@ -289,12 +289,12 @@ every 30 minutes the world reweaves around what people made. Three virtues:
 Power (red, stake, corrupts when hoarded), Wisdom (blue, curation), Courage
 (green, posting, the newcomer's virtue); an all-power heart is how villains
 and fakes are made and how you spot a bad account. The Fall and Migration:
-the old world was bought by the almighty evil Emperor J Son, who seized the
+the old world was bought by the almighty evil Emperor J SON, who seized the
 21 thrones with sock puppets; the people carried the world away and left him
 an empty shell (the real 2020 Steem takeover, mythologized). His name lives
 in one translation string for merge-safety. Fact in the museum, myth in the
 gameplay. The 21 guardians are the witnesses; Witty World is their hall.
-Enemies: sock puppets (J Son's leftovers, same species as today's fakes) and
+Enemies: sock puppets (J SON's leftovers, same species as today's fakes) and
 Blahs (small, loud, cannot be flagged away because where they come from there
 is no downvote). Also scammer, extractor, spammer. The White Knight: an
 unidentified helper who returns what was stolen (true story, parked). The
