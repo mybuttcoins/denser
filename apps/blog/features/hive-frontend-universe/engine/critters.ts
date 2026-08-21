@@ -601,16 +601,22 @@ function drawSpammer(ctx: CanvasRenderingContext2D, x: number, y: number, face: 
   ctx.arc(face * 5, -14, 5.4, 0, 6.283);
   ctx.fill();
   ctx.stroke();
-  // Round hungry eyes.
-  for (const exx of [-5, 5]) {
+  // Round hungry eyes, grown BIG per the cosmic-octopus brief: the big-eyed
+  // cuteness got absorbed here instead of spawning a second octopus species.
+  for (const exx of [-5.5, 5.5]) {
     ctx.beginPath();
-    ctx.arc(exx + face * 1.5, -3, 3.6, 0, 6.283);
+    ctx.arc(exx + face * 1.5, -3.5, 5.2, 0, 6.283);
     ctx.fillStyle = '#ffffff';
     ctx.fill();
     ctx.stroke();
     ctx.fillStyle = OUTLINE;
     ctx.beginPath();
-    ctx.arc(exx + face * 2.8, -3, 1.6, 0, 6.283);
+    ctx.arc(exx + face * 2.8, -3.2, 2.4, 0, 6.283);
+    ctx.fill();
+    // Catchlight: the dot that makes an eye adorable instead of hungry.
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(exx + face * 2.2, -4.4, 0.9, 0, 6.283);
     ctx.fill();
   }
   ctx.restore();

@@ -22,7 +22,14 @@ import { posAt } from './movement';
 import type { Factory, Cube, Formation } from './scenery';
 import type { FlowParticle } from './particles';
 import type { CritterState } from './critters';
-import { TROLL_HOLES, STEEM_RUINS, type LandmarkCategory, type IconKey } from '../lib/fixed-world';
+import {
+  TROLL_HOLES,
+  STEEM_RUINS,
+  insideBody,
+  type LandmarkCategory,
+  type IconKey
+} from '../lib/fixed-world';
+import { mulberry32 } from '../lib/mesh';
 import {
   drawIcon,
   drawFish,
@@ -325,6 +332,271 @@ function hash2(a: number, b: number): number {
 const MONO = 'ui-monospace, SFMono-Regular, Menlo, monospace';
 const scratch: Vec2 = { x: 0, y: 0 };
 
+/* ------------------------------ THE SKY ------------------------------ */
+/*
+ * Pass seventeen, from the design synthesis: the void stops being dead
+ * black. Three layers, all deterministic and built ONCE per session:
+ * a magical colorful starfield (visible at every zoom, loudest where the
+ * map used to be emptiest), long diagonal light streaks aligned with the
+ * logo's slant, and faint sacred-geometry constellations that trace Hive
+ * iconography. Everything obeys the hierarchy guardrails: nothing in the
+ * sky reaches full alpha, nothing outshines land, routes or landmarks.
+ */
+
+/** Desaturated echoes of the identity colors; the void speaks one octave down. */
+const STAR_PALETTE: readonly [string, number][] = [
+  ['#F4F1FF', 35],
+  ['#9DB4FF', 20],
+  ['#7FD9D2', 15],
+  ['#FFD9A0', 15],
+  ['#D9A8FF', 10],
+  ['#FF9EAE', 5]
+];
+
+interface SkyStar {
+  x: number;
+  y: number;
+  r: number;
+  color: string;
+  /** Base alpha for static stars; twinklers oscillate around it. */
+  a: number;
+  /** Twinkle phase, or -1 for a static star. */
+  tw: number;
+  /** Twinkle period seconds (only read when tw >= 0). */
+  period: number;
+  anchor: boolean;
+}
+
+let SKY_STARS: SkyStar[] | null = null;
+
+/** True when the point sits in one of the logo's channel cuts (not on land,
+ *  but between the masses): the channels are content space, so their stars
+ *  stay sparse and small per the synthesis. */
+function inChannelZone(x: number, y: number): boolean {
+  return Math.abs(x) < 6300 && Math.abs(y) < 5300;
+}
+
+function buildSkyStars(): SkyStar[] {
+  const rng = mulberry32(0x57a2);
+  const stars: SkyStar[] = [];
+  const pickColor = (): string => {
+    let roll = rng() * 100;
+    for (const [hex, w] of STAR_PALETTE) {
+      roll -= w;
+      if (roll <= 0) return hex;
+    }
+    return STAR_PALETTE[0][0];
+  };
+  const tryAdd = (x: number, y: number, clump: boolean) => {
+    // Quiet margin: no stars on land or hugging the coast, so the red
+    // silhouette stays razor-crisp against true black.
+    if (insideBody(x, y)) return;
+    if (insideBody(x + 70, y) || insideBody(x - 70, y) || insideBody(x, y + 70) || insideBody(x, y - 70)) {
+      return;
+    }
+    const channel = inChannelZone(x, y);
+    if (channel && rng() > 0.33) return;
+    const anchor = !channel && !clump && rng() < 0.02;
+    const r = anchor ? 2.4 + rng() * 0.7 : 0.5 + rng() * (channel ? 0.7 : 1.3);
+    // A capped subset twinkles; per-frame sin on ~150 stars is budget dust.
+    const tw = !channel && rng() < 0.16 ? rng() * 6.283 : -1;
+    stars.push({
+      x,
+      y,
+      r,
+      color: pickColor(),
+      a: 0.2 + rng() * 0.25,
+      tw,
+      period: 2 + rng() * 4,
+      anchor
+    });
+  };
+  const CELL = 1000;
+  for (let cx = -9; cx < 9; cx++) {
+    for (let cy = -9; cy < 9; cy++) {
+      const bx = cx * CELL;
+      const by = cy * CELL;
+      for (let k = 0; k < 2; k++) tryAdd(bx + rng() * CELL, by + rng() * CELL, false);
+      // Clumps: universe, not wallpaper.
+      if (rng() < 0.3) {
+        const gx = bx + rng() * CELL;
+        const gy = by + rng() * CELL;
+        for (let k = 0; k < 4; k++) {
+          const a = rng() * 6.283;
+          const d = rng() * 300;
+          tryAdd(gx + Math.cos(a) * d, gy + Math.sin(a) * d, true);
+        }
+      }
+    }
+  }
+  return stars;
+}
+
+/**
+ * Long diagonal light streaks, aligned with the logo's own slant so the sky
+ * agrees with the planet. Fixed positions in the corner pockets and the ring
+ * annulus; none in the channels. Alphas are whispers on purpose.
+ */
+const SKY_STREAKS: readonly {
+  x: number;
+  y: number;
+  len: number;
+  w: number;
+  c1: string;
+  c2: string;
+}[] = [
+  { x: -7600, y: -5600, len: 780, w: 26, c1: '#FF6FB0', c2: '#9DB4FF' },
+  { x: -6600, y: -6600, len: 520, w: 14, c1: '#7FD9D2', c2: '#F4F1FF' },
+  { x: 7200, y: -6200, len: 860, w: 22, c1: '#9DB4FF', c2: '#D9A8FF' },
+  { x: 8300, y: -4900, len: 460, w: 12, c1: '#FFB36B', c2: '#FF6FB0' },
+  { x: -8300, y: 4400, len: 700, w: 18, c1: '#7FD9D2', c2: '#9DB4FF' },
+  { x: -7000, y: 6300, len: 540, w: 24, c1: '#D9A8FF', c2: '#FF6FB0' },
+  { x: 7600, y: 6600, len: 820, w: 20, c1: '#FF6FB0', c2: '#7FD9D2' },
+  { x: 6300, y: 7600, len: 480, w: 12, c1: '#F4F1FF', c2: '#FFB36B' },
+  { x: 300, y: -8300, len: 640, w: 16, c1: '#9DB4FF', c2: '#7FD9D2' },
+  { x: -1400, y: 8200, len: 600, w: 16, c1: '#D9A8FF', c2: '#9DB4FF' }
+];
+/** The logo's blades slant steeply up-right; the streaks agree. */
+const STREAK_DX = Math.cos(-1.15);
+const STREAK_DY = Math.sin(-1.15);
+
+/**
+ * Sacred-geometry constellations tracing Hive iconography, one per major
+ * void pocket. Fixed forever, so they double as navigation landmarks in a
+ * world with no labels ("the bee is south-west"). Points are anchor-class
+ * stars; the joining lines and the enclosing circle are barely-there.
+ */
+const CONSTELLATIONS: readonly {
+  cx: number;
+  cy: number;
+  ring: number;
+  pts: readonly (readonly [number, number])[];
+  edges: readonly (readonly [number, number])[];
+}[] = [
+  {
+    // The Hive hex, north-east annulus.
+    cx: 4400,
+    cy: -5900,
+    ring: 300,
+    pts: [[0, -230], [200, -115], [200, 115], [0, 230], [-200, 115], [-200, -115], [0, 0]],
+    edges: [[0, 1], [1, 2], [2, 3], [3, 4], [4, 5], [5, 0], [6, 0], [6, 2], [6, 4]]
+  },
+  {
+    // The upvote chevron, west of the diamond.
+    cx: -7300,
+    cy: -3400,
+    ring: 260,
+    pts: [[0, -210], [190, 0], [80, 0], [80, 190], [-80, 190], [-80, 0], [-190, 0]],
+    edges: [[0, 1], [1, 2], [2, 3], [3, 4], [4, 5], [5, 6], [6, 0]]
+  },
+  {
+    // The key (key_backup), east annulus.
+    cx: 7300,
+    cy: 2300,
+    ring: 280,
+    pts: [[-140, -120], [0, -200], [140, -120], [140, 20], [0, 100], [0, 210], [90, 210]],
+    edges: [[0, 1], [1, 2], [2, 3], [3, 4], [4, 0], [4, 5], [5, 6]]
+  },
+  {
+    // The bee, south-west corner.
+    cx: -6900,
+    cy: 6400,
+    ring: 300,
+    pts: [[-160, 40], [0, -40], [160, 40], [0, 120], [-90, -160], [90, -160], [0, -40]],
+    edges: [[0, 1], [1, 2], [2, 3], [3, 0], [4, 6], [5, 6]]
+  },
+  {
+    // The puppet tower, south annulus.
+    cx: 2900,
+    cy: 7000,
+    ring: 260,
+    pts: [[0, -210], [90, -90], [-90, -90], [70, 60], [-70, 60], [0, 200]],
+    edges: [[0, 1], [0, 2], [1, 3], [2, 4], [3, 5], [4, 5]]
+  }
+];
+
+function drawSky(
+  ctx: CanvasRenderingContext2D,
+  time: number,
+  z: number,
+  vx0: number,
+  vy0: number,
+  vx1: number,
+  vy1: number
+): void {
+  // All sky sizes are SCREEN-space (divided by zoom): a star is a pixel or
+  // three at every height, which is exactly why the old field vanished on
+  // the pulled-out map and the void read as unfinished black.
+  const iz = 1 / Math.max(z, 0.04);
+
+  // Streaks first, deepest.
+  for (const s of SKY_STREAKS) {
+    const x2 = s.x + STREAK_DX * s.len;
+    const y2 = s.y + STREAK_DY * s.len;
+    if (Math.max(s.x, x2) < vx0 || Math.min(s.x, x2) > vx1 || Math.max(s.y, y2) < vy0 || Math.min(s.y, y2) > vy1) {
+      continue;
+    }
+    const g = ctx.createLinearGradient(s.x, s.y, x2, y2);
+    g.addColorStop(0, s.c1);
+    g.addColorStop(1, s.c2);
+    ctx.strokeStyle = g;
+    ctx.lineCap = 'round';
+    ctx.lineWidth = s.w * iz * 0.5;
+    ctx.globalAlpha = 0.08;
+    ctx.beginPath();
+    ctx.moveTo(s.x, s.y);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+
+  // The starfield.
+  if (!SKY_STARS) SKY_STARS = buildSkyStars();
+  for (const st of SKY_STARS) {
+    if (st.x < vx0 || st.x > vx1 || st.y < vy0 || st.y > vy1) continue;
+    let a = st.a;
+    if (st.tw >= 0) a = 0.25 + (0.225 + Math.sin((time / st.period) * 6.283 + st.tw) * 0.225);
+    const r = st.r * iz;
+    if (st.anchor) {
+      ctx.globalAlpha = Math.min(0.35, a * 0.5);
+      ctx.fillStyle = st.color;
+      ctx.beginPath();
+      ctx.arc(st.x, st.y, r * 2.4, 0, 6.283);
+      ctx.fill();
+    }
+    ctx.globalAlpha = Math.min(0.58, a);
+    ctx.fillStyle = st.color;
+    ctx.fillRect(st.x - r, st.y - r, r * 2, r * 2);
+  }
+  ctx.globalAlpha = 1;
+
+  // Constellations: dots, faint joining lines, an enclosing circle.
+  for (const c of CONSTELLATIONS) {
+    if (c.cx + 400 < vx0 || c.cx - 400 > vx1 || c.cy + 400 < vy0 || c.cy - 400 > vy1) continue;
+    ctx.strokeStyle = '#9DB4FF';
+    ctx.lineWidth = 1.4 * iz;
+    ctx.globalAlpha = 0.07;
+    ctx.beginPath();
+    ctx.arc(c.cx, c.cy, c.ring, 0, 6.283);
+    ctx.stroke();
+    ctx.globalAlpha = 0.12;
+    ctx.beginPath();
+    for (const [a0, b0] of c.edges) {
+      ctx.moveTo(c.cx + c.pts[a0][0], c.cy + c.pts[a0][1]);
+      ctx.lineTo(c.cx + c.pts[b0][0], c.cy + c.pts[b0][1]);
+    }
+    ctx.stroke();
+    for (let i = 0; i < c.pts.length; i++) {
+      ctx.globalAlpha = 0.45 + Math.sin(time * 0.4 + i * 1.7 + c.cx) * 0.2;
+      ctx.fillStyle = '#F4F1FF';
+      ctx.beginPath();
+      ctx.arc(c.cx + c.pts[i][0], c.cy + c.pts[i][1], 3.2 * iz, 0, 6.283);
+      ctx.fill();
+    }
+  }
+  ctx.globalAlpha = 1;
+}
+
 /** An irregular blob instead of a perfect circle; shape fixed per id. */
 function blobPath(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, id: number): void {
   const p1 = hash2(id, 1) * 6.283;
@@ -378,24 +650,9 @@ export function drawScene(scene: RenderScene): void {
     return maxX > vx0 && minX < vx1 && maxY > vy0 && minY < vy1;
   };
 
-  // Stars: still, deterministic specks. Skipped at map zoom (too dense).
-  if (mapness < 0.6) {
-    const CELL = 640;
-    ctx.fillStyle = PALETTE.star;
-    for (let cx = Math.floor(vx0 / CELL); cx <= Math.floor(vx1 / CELL); cx++) {
-      for (let cy = Math.floor(vy0 / CELL); cy <= Math.floor(vy1 / CELL); cy++) {
-        for (let s = 0; s < 2; s++) {
-          const hx = hash2(cx * 3 + s, cy * 7 + s);
-          const hy = hash2(cx * 5 + s, cy * 11 + s);
-          const hs = hash2(cx * 13 + s, cy * 17 + s);
-          ctx.globalAlpha = 0.08 + hs * 0.2;
-          const r = 1.2 + hs * 2.4;
-          ctx.fillRect(cx * CELL + hx * CELL, cy * CELL + hy * CELL, r, r);
-        }
-      }
-    }
-    ctx.globalAlpha = 1;
-  }
+  // THE SKY: colorful stars, diagonal streaks, Hive constellations. Visible
+  // at every zoom; loudest exactly where the map used to be dead black.
+  drawSky(ctx, time, z, vx0, vy0, vx1, vy1);
 
   // The tier fish, out in the open water: plankton through whale, dim
   // silhouettes so the sea-in-space theme reads while playing.
@@ -445,11 +702,67 @@ export function drawScene(scene: RenderScene): void {
     drawGround(ctx, scene.ground, vx0, vy0, vx1, vy1, z);
   }
 
+  // CURVATURE: the outermost rim of the world dims a touch, implying a
+  // sphere seen face-on. Rim only, and gentle: the land's brightness ruling
+  // (bright red IS the identity) stands; this never touches the center.
+  if (mapness > 0.15) {
+    const cg = ctx.createRadialGradient(0, 0, 5400, 0, 0, 9600);
+    cg.addColorStop(0, 'rgba(4, 2, 8, 0)');
+    cg.addColorStop(1, `rgba(4, 2, 8, ${(0.16 * mapness).toFixed(3)})`);
+    ctx.fillStyle = cg;
+    ctx.fillRect(vx0, vy0, vx1 - vx0, vy1 - vy0);
+  }
+
   // NOTE: an art-direction pass tried darkening the land toward wine at map
   // zoom here (value-hierarchy argument: the ground was the brightest large
   // surface on screen). Bryan overruled it: the bright red IS the map's
   // identity. The hierarchy is carried by the other levers instead: route
   // casing, landmark exaggeration, ground pads, street fade, vignette.
+
+  // THE COMB: at play zoom the land's interior carries a faint hex-cell
+  // grid. The planet IS a honeycomb; the bee theme lands as geometry
+  // without a single new object. Clipped to the visible land cells.
+  if (scene.ground && z >= 0.3) {
+    const gr = scene.ground;
+    const clip = new Path2D();
+    let anyCell = false;
+    for (let i = 0; i < gr.cellPaths.length; i++) {
+      const b = gr.cellBox[i];
+      if (b.x1 < vx0 || b.x0 > vx1 || b.y1 < vy0 || b.y0 > vy1) continue;
+      clip.addPath(gr.cellPaths[i]);
+      anyCell = true;
+    }
+    if (anyCell) {
+      ctx.save();
+      ctx.clip(clip);
+      const R = 96;
+      const HH = R * 0.866;
+      ctx.strokeStyle = '#4a060c';
+      ctx.lineWidth = 2.4;
+      ctx.globalAlpha = 0.35;
+      ctx.beginPath();
+      const q0 = Math.floor(vx0 / (R * 1.5)) - 1;
+      const q1 = Math.ceil(vx1 / (R * 1.5)) + 1;
+      const r0 = Math.floor(vy0 / (HH * 2)) - 1;
+      const r1 = Math.ceil(vy1 / (HH * 2)) + 1;
+      for (let q = q0; q <= q1; q++) {
+        for (let rr = r0; rr <= r1; rr++) {
+          const hx = q * R * 1.5;
+          const hy = (rr * 2 + (q & 1)) * HH;
+          // Right pair + top edge of each flat-top hex; neighbours supply
+          // the left pair and the bottom, so no edge is drawn twice.
+          ctx.moveTo(hx + R * 0.5, hy - HH);
+          ctx.lineTo(hx + R, hy);
+          ctx.lineTo(hx + R * 0.5, hy + HH);
+          ctx.moveTo(hx - R * 0.5, hy - HH);
+          ctx.lineTo(hx + R * 0.5, hy - HH);
+        }
+      }
+      ctx.stroke();
+      ctx.restore();
+      ctx.globalAlpha = 1;
+    }
+  }
 
   // Rock formations: spiky crystal clutches standing on the terrain, under
   // everything travelable. Skipped on the pulled-out map, where 190 clutches
@@ -548,6 +861,23 @@ export function drawScene(scene: RenderScene): void {
       wt.rank * 0.7,
       z >= 0.12
     );
+    // Lit windows up the tower, a blinking few among them: 21 lonely
+    // monuments become 21 inhabited outposts (population silhouette tier).
+    const wr = 1.3 / Math.max(z, 0.05);
+    ctx.fillStyle = '#FFD9A0';
+    for (let k = 0; k < 3; k++) {
+      const blinker = (wt.rank + k) % 7 === 0;
+      const on = !blinker || Math.sin(time * 1.6 + wt.rank * 2 + k) > -0.2;
+      if (!on) continue;
+      ctx.globalAlpha = 0.75;
+      ctx.fillRect(
+        wt.x - wr / 2 + (k - 1) * wr * 1.6,
+        wt.y - towerH * (0.3 + k * 0.13),
+        wr,
+        wr * 1.4
+      );
+    }
+    ctx.globalAlpha = 1;
   }
 
   // Emperor J SON's troll holes, sunk into the terrain. The keep is a
@@ -592,7 +922,11 @@ export function drawScene(scene: RenderScene): void {
     // Thicker and brighter again, and the whole network BREATHES: a slow
     // alpha pulse offset per stroke family makes the map read as a living
     // thing rather than a printed one. One alpha per family costs nothing.
-    const streetW = (kind === 'mesh' ? 4.4 : 4.0) * (z < 0.12 ? 0.55 : 1);
+    // Bryan's proportion ruling, pass seventeen: gold thickest by a step,
+    // cyan as-is, streets at half of cyan WITH a 2px+ floor at map zoom so
+    // the capillary web always reads as texture instead of vanishing.
+    const baseW = kind === 'mesh' ? 3.2 : 3.0;
+    const streetW = z < 0.12 ? Math.max(baseW * 0.55, 2.3) : baseW;
     ctx.lineWidth = streetW / Math.max(z, 0.05);
     const breathe = 0.08 * Math.sin(time * 1.4 + (kind === 'mesh' ? 0 : 1.1));
     // Streets FADE OUT as the camera pulls out: at map height they carried no
@@ -641,7 +975,9 @@ export function drawScene(scene: RenderScene): void {
         ]
       : [
           { col: layer.casing, w: layer.width * 1.98, a: 0.85 },
-          { col: layer.glow, w: layer.width * 1.47, a: 0.18 },
+          // Halo capped near half the core width: most of gold's former
+          // overweight was bloom, not stroke (design synthesis, item 1).
+          { col: layer.glow, w: layer.width * 1.3, a: 0.18 },
           { col: layer.core, w: layer.width, a: 1 }
         ];
     if (layer.dash) ctx.setLineDash(layer.dash.map((d) => d / Math.max(z, 0.05)));
@@ -1060,22 +1396,36 @@ export function drawScene(scene: RenderScene): void {
   const bugX = scene.rideOverlay ? scene.rideOverlay.x : player.x;
   const bugY = scene.rideOverlay ? scene.rideOverlay.y : player.y;
   drawBug(ctx, player, time, bugX, bugY);
-  if (scene.helmetState) {
+  // The worn helmet resolves at play zoom only; below that the dome would
+  // be sub-2px mush (LOD rule: identity survives, detail does not).
+  if (scene.helmetState && z >= 0.22) {
     drawSuitBubble(ctx, bugX, bugY, scene.helmetState, time);
   }
   if (scene.hazards) {
     drawHazardsOnBug(ctx, scene.hazards, bugX, bugY, time);
   }
 
-  // Warp effect: expanding rings at the bug.
+  // Warp effect: the SPIRAL, from the bike-wheel art brief. Three rotating
+  // color arms unwinding outward as the effect fades: vibrant, one-shot,
+  // and the only place these hues run at celebration volume in-world.
   if (scene.warpFx && scene.warpFx > 0) {
     const f = 1 - scene.warpFx;
-    ctx.strokeStyle = PALETTE.newRing;
-    for (const mul of [1, 1.6]) {
-      ctx.globalAlpha = scene.warpFx * 0.8;
-      ctx.lineWidth = 3 / Math.max(z, 0.1);
+    const ARMS = ['#FF6FB0', '#7FD9D2', '#FFD9A0'];
+    ctx.lineCap = 'round';
+    for (let arm = 0; arm < ARMS.length; arm++) {
+      ctx.strokeStyle = ARMS[arm];
+      ctx.globalAlpha = scene.warpFx * 0.85;
+      ctx.lineWidth = 4.5 / Math.max(z, 0.1);
       ctx.beginPath();
-      ctx.arc(player.x, player.y, (30 + f * 320 * mul) / Math.max(z, 0.2), 0, 6.283);
+      for (let s = 0; s <= 10; s++) {
+        const tt = s / 10;
+        const ang = arm * 2.094 + tt * 2.6 + f * 5;
+        const rad = (14 + tt * (40 + f * 300)) / Math.max(z, 0.2);
+        const px = player.x + Math.cos(ang) * rad;
+        const py = player.y + Math.sin(ang) * rad;
+        if (s === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      }
       ctx.stroke();
     }
     ctx.globalAlpha = 1;

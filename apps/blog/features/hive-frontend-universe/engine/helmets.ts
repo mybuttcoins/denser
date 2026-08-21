@@ -172,8 +172,12 @@ export function drawHelmets(
 }
 
 /**
- * The suit on the bug: a glass bubble that grows a little with every helmet
- * compiled. Drawn by the renderer right after the bug itself.
+ * The suit on the bug: a little glass dome WORN ON THE HEAD, like the
+ * bee-astronaut cover Bryan brought back from the board game store (pass
+ * seventeen; it replaced a whole-body bubble that read as a force field,
+ * not a helmet). At small sizes the upper-left highlight arc IS the
+ * helmet; everything else is garnish. Antennae are drawn by drawBug before
+ * this runs, so they show through the low-alpha glass.
  */
 export function drawSuitBubble(
   ctx: CanvasRenderingContext2D,
@@ -194,27 +198,44 @@ export function drawSuitBubble(
   }
   const count = state.count;
   if (count <= 0 && state.spareAir <= 0) return;
-  // Spare breaths bulge the suit a little beyond the compiled helmets.
-  const r = 40 + count * 1.6 + state.spareAir * 3;
+  // The dome sits over the bug's head (top of the diamond body). It grows a
+  // whisper with the compiled count and bulges when spare air is aboard.
+  const r = 11 + Math.min(count, 21) * 0.14 + (state.spareAir > 0 ? 2 : 0);
+  const cy = y - 16;
   ctx.save();
-  ctx.translate(x, y);
-  ctx.globalAlpha = 0.16;
-  ctx.fillStyle = '#9be8ff';
+  // Glass: just enough tint to exist.
+  ctx.globalAlpha = 0.12;
+  ctx.fillStyle = '#CFEAFF';
   ctx.beginPath();
-  ctx.arc(0, 0, r, 0, 6.283);
+  ctx.arc(x, cy, r, 0, 6.283);
   ctx.fill();
-  ctx.globalAlpha = 0.75;
-  ctx.strokeStyle = '#bdeeff';
-  ctx.lineWidth = 2.6;
+  // Rim.
+  ctx.globalAlpha = state.spareAir > 0 ? 0.85 : 0.65;
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 1.8;
   ctx.beginPath();
-  ctx.arc(0, 0, r, 0, 6.283);
+  ctx.arc(x, cy, r, 0, 6.283);
   ctx.stroke();
-  // A drifting highlight, so the glass reads as glass.
-  ctx.globalAlpha = 0.8;
-  ctx.lineWidth = 3.2;
+  // Seat shadow, so the dome sits ON the head rather than behind it.
+  ctx.globalAlpha = 0.5;
+  ctx.strokeStyle = '#5c0a16';
+  ctx.lineWidth = 1.2;
   ctx.beginPath();
-  const a0 = -1.2 + Math.sin(time * 0.8) * 0.2;
-  ctx.arc(0, 0, r - 5, a0, a0 + 0.7);
+  ctx.arc(x, cy, r - 0.8, 0.5, 2.64);
   ctx.stroke();
+  // The highlight arc that sells the glass, drifting a little.
+  ctx.globalAlpha = 0.9;
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 2.2;
+  ctx.beginPath();
+  const a0 = -2.3 + Math.sin(time * 0.8) * 0.15;
+  ctx.arc(x, cy, r - 3, a0, a0 + 0.75);
+  ctx.stroke();
+  // One specular dot.
+  ctx.beginPath();
+  ctx.arc(x + r * 0.35, cy - r * 0.55, 1.1, 0, 6.283);
+  ctx.fillStyle = '#ffffff';
+  ctx.fill();
   ctx.restore();
+  ctx.globalAlpha = 1;
 }

@@ -99,6 +99,13 @@ export interface Ground {
   glass: HTMLCanvasElement | null;
   /** Blurred outer radiance, drawn under the land. */
   halo: HTMLCanvasElement | null;
+  /**
+   * A dark blurred silhouette blitted OFFSET under everything: the land's
+   * drop shadow on the void. One extra blit per frame and the flat decal
+   * becomes a thick slab floating in space (pass seventeen, from the
+   * design synthesis's "thick magic rock" direction).
+   */
+  shadow: HTMLCanvasElement | null;
   /** World-space box both textures are stretched across. */
   texBox: { x: number; y: number; w: number; h: number };
   stats: { cells: number; regions: number; buildMs: number };
@@ -244,6 +251,25 @@ function buildHalo(box: { x: number; y: number; w: number; h: number }): HTMLCan
   return canvas;
 }
 
+/** The slab's drop shadow: the same silhouette, dark, blitted offset. */
+function buildShadow(box: { x: number; y: number; w: number; h: number }): HTMLCanvasElement | null {
+  const TEX_W = 640;
+  const scale = TEX_W / box.w;
+  const made = makeCanvas(TEX_W, Math.max(1, Math.round(box.h * scale)));
+  if (!made) return null;
+  const { canvas, ctx } = made;
+  ctx.setTransform(scale, 0, 0, scale, -box.x * scale, -box.y * scale);
+  ctx.filter = 'blur(9px)';
+  ctx.fillStyle = '#0e0410';
+  for (const c of BODY_CELLS) {
+    ctx.beginPath();
+    ctx.arc(c.x, c.y, c.r * 1.05, 0, 6.283);
+    ctx.fill();
+  }
+  ctx.filter = 'none';
+  return canvas;
+}
+
 export function buildGround(windowStart: number): Ground {
   const t0 = Date.now();
   const rng = mulberry32((windowStart ^ 0x6c0d) | 0);
@@ -309,6 +335,7 @@ export function buildGround(windowStart: number): Ground {
     baseTex: buildBaseTex(texBox, 1536, cellColors),
     glass: buildGlass(texBox, 1536),
     halo: buildHalo(texBox),
+    shadow: buildShadow(texBox),
     texBox,
     stats: { cells: BODY_CELLS.length, regions: seeds.length, buildMs: Date.now() - t0 }
   };
@@ -330,7 +357,15 @@ export function drawGround(
 ): void {
   const far = z < GROUND_LOD_Z;
 
-  // Halo first, under the land.
+  // Drop shadow first, offset toward lower-right (light from upper-left):
+  // the land becomes a slab floating over the void instead of a decal on it.
+  if (g.shadow) {
+    ctx.globalAlpha = 0.55;
+    ctx.drawImage(g.shadow, g.texBox.x + 90, g.texBox.y + 150, g.texBox.w, g.texBox.h);
+    ctx.globalAlpha = 1;
+  }
+
+  // Halo next, under the land.
   if (g.halo) {
     ctx.globalAlpha = 0.5;
     ctx.drawImage(g.halo, g.texBox.x, g.texBox.y, g.texBox.w, g.texBox.h);

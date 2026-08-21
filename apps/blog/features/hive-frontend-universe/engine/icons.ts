@@ -409,16 +409,20 @@ export function drawIcon(
       ctx.closePath();
       ctx.fillStyle = '#3b2a14';
       ctx.fill();
-      // Warm lamplight spilling out of the doorway, gently breathing. This is
-      // meant to be the friendliest thing on the map, so it is the only place
-      // that is visibly lit from the inside.
+      // THE TENT'S HEART. Warm light spilling from the doorway with an
+      // actual HEARTBEAT: a quick rise, a slow fall, ~1.2s around a resting
+      // pulse. Basecamp is the newcomer's home, and homes have heartbeats
+      // (pass seventeen, from the ice-temple brief). Still the only place
+      // on the map visibly lit from the inside.
       ctx.save();
       ctx.clip();
-      const lamp = 0.72 + Math.sin(time * 1.6) * 0.28;
+      const hb = (time % 1.2) / 1.2;
+      const beat = hb < 0.3 ? hb / 0.3 : 1 - (hb - 0.3) / 0.7;
+      const lamp = 0.5 + beat * 0.5;
       const spill = ctx.createRadialGradient(x, y + s * 0.5, s * 0.02, x, y + s * 0.5, s * 0.62);
-      spill.addColorStop(0, `rgba(255, 214, 130, ${0.85 * lamp})`);
-      spill.addColorStop(0.55, `rgba(255, 170, 70, ${0.35 * lamp})`);
-      spill.addColorStop(1, 'rgba(255, 150, 60, 0)');
+      spill.addColorStop(0, `rgba(255, 193, 77, ${0.85 * lamp})`);
+      spill.addColorStop(0.55, `rgba(255, 140, 107, ${0.38 * lamp})`);
+      spill.addColorStop(1, 'rgba(255, 140, 107, 0)');
       ctx.fillStyle = spill;
       ctx.fillRect(x - s, y - s, s * 2, s * 2);
       ctx.restore();

@@ -93,7 +93,7 @@ export const Controls = ({ labels, onVector, onHop, onMapHold, onMapTap }: Contr
       <button
         type="button"
         data-testid="hfu-map-button"
-        className="pointer-events-auto absolute bottom-[132px] right-6 h-14 w-14 select-none rounded-full border-2 border-[#8fd8e4]/50 bg-white/[0.03] font-mono text-xs font-bold text-[#8fd8e4] active:bg-[#8fd8e4]/20 touch-none"
+        className="pointer-events-auto absolute bottom-[104px] right-6 h-12 w-12 select-none rounded-full border-2 border-[#8fd8e4]/50 bg-white/[0.03] font-mono text-[11px] font-bold text-[#8fd8e4] active:bg-[#8fd8e4]/20 touch-none"
         onPointerDown={(e) => {
           e.currentTarget.setPointerCapture(e.pointerId);
           mapDownAt.current = Date.now();
@@ -113,7 +113,7 @@ export const Controls = ({ labels, onVector, onHop, onMapHold, onMapTap }: Contr
       <button
         type="button"
         data-testid="hfu-hop-button"
-        className="pointer-events-auto absolute bottom-5 right-5 h-[92px] w-[92px] select-none rounded-full border-2 border-[#5df0ff]/50 bg-white/[0.03] font-mono text-sm font-bold text-[#5df0ff] active:bg-[#5df0ff]/20 touch-none"
+        className="pointer-events-auto absolute bottom-5 right-5 h-16 w-16 select-none rounded-full border-2 border-[#5df0ff]/50 bg-white/[0.03] font-mono text-sm font-bold text-[#5df0ff] active:bg-[#5df0ff]/20 touch-none"
         onPointerDown={onHop}
         onContextMenu={(e) => e.preventDefault()}
       >

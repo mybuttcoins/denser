@@ -154,7 +154,9 @@ const Stage = ({ board }: { board: Board }) => {
         casing: '#1a0d05',
         glow: PALETTE.routeGlow,
         core: PALETTE.route,
-        width: 9.2,
+        // 1.3x the cyan line, per Bryan's proportion ruling: first place
+        // by a step, not a shout (was 9.2, which read close to 1.75x).
+        width: 8.1,
         spark: '#fff3c0'
       },
       {
