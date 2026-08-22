@@ -912,7 +912,8 @@
       "window": "WINDOW",
       "tokens": "TOKENS",
       "helmets": "HELMETS",
-      "places": "PLACES"
+      "places": "PLACES",
+      "gems": "GEMS"
     },
     "map": {
       "hint": "Tap a landmark to travel there",

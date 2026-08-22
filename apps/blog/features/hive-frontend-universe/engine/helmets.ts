@@ -200,19 +200,21 @@ export function drawSuitBubble(
   if (count <= 0 && state.spareAir <= 0) return;
   // The dome sits over the bug's head (top of the diamond body). It grows a
   // whisper with the compiled count and bulges when spare air is aboard.
-  const r = 11 + Math.min(count, 21) * 0.14 + (state.spareAir > 0 ? 2 : 0);
-  const cy = y - 16;
+  // Bryan's first playtest could not SEE it, so it grew from 11 to 15 and
+  // the glass and rim both came up in presence.
+  const r = 15 + Math.min(count, 21) * 0.14 + (state.spareAir > 0 ? 2.5 : 0);
+  const cy = y - 18;
   ctx.save();
-  // Glass: just enough tint to exist.
-  ctx.globalAlpha = 0.12;
+  // Glass: visibly there now.
+  ctx.globalAlpha = 0.2;
   ctx.fillStyle = '#CFEAFF';
   ctx.beginPath();
   ctx.arc(x, cy, r, 0, 6.283);
   ctx.fill();
   // Rim.
-  ctx.globalAlpha = state.spareAir > 0 ? 0.85 : 0.65;
+  ctx.globalAlpha = state.spareAir > 0 ? 0.95 : 0.85;
   ctx.strokeStyle = '#ffffff';
-  ctx.lineWidth = 1.8;
+  ctx.lineWidth = 2.4;
   ctx.beginPath();
   ctx.arc(x, cy, r, 0, 6.283);
   ctx.stroke();
@@ -224,16 +226,16 @@ export function drawSuitBubble(
   ctx.arc(x, cy, r - 0.8, 0.5, 2.64);
   ctx.stroke();
   // The highlight arc that sells the glass, drifting a little.
-  ctx.globalAlpha = 0.9;
+  ctx.globalAlpha = 0.95;
   ctx.strokeStyle = '#ffffff';
-  ctx.lineWidth = 2.2;
+  ctx.lineWidth = 2.8;
   ctx.beginPath();
   const a0 = -2.3 + Math.sin(time * 0.8) * 0.15;
-  ctx.arc(x, cy, r - 3, a0, a0 + 0.75);
+  ctx.arc(x, cy, r - 3.5, a0, a0 + 0.8);
   ctx.stroke();
   // One specular dot.
   ctx.beginPath();
-  ctx.arc(x + r * 0.35, cy - r * 0.55, 1.1, 0, 6.283);
+  ctx.arc(x + r * 0.35, cy - r * 0.55, 1.5, 0, 6.283);
   ctx.fillStyle = '#ffffff';
   ctx.fill();
   ctx.restore();

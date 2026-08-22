@@ -810,7 +810,8 @@
       "window": "窗口",
       "tokens": "代币",
       "helmets": "头盔",
-      "places": "地点"
+      "places": "地点",
+      "gems": "宝石"
     },
     "map": {
       "hint": "点按地标即可前往",

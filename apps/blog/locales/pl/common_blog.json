@@ -815,7 +815,8 @@
       "window": "OKNO",
       "tokens": "ŻETONY",
       "helmets": "HEŁMY",
-      "places": "MIEJSCA"
+      "places": "MIEJSCA",
+      "gems": "KLEJNOTY"
     },
     "map": {
       "hint": "Dotknij miejsca, aby tam podróżować",

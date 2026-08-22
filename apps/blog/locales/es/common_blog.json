@@ -810,7 +810,8 @@
       "window": "VENTANA",
       "tokens": "FICHAS",
       "helmets": "CASCOS",
-      "places": "LUGARES"
+      "places": "LUGARES",
+      "gems": "GEMAS"
     },
     "map": {
       "hint": "Toca un lugar para viajar allí",

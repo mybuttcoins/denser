@@ -25,11 +25,13 @@ import type { CritterState } from './critters';
 import {
   TROLL_HOLES,
   STEEM_RUINS,
+  ISLAND_CHIPS,
   insideBody,
   type LandmarkCategory,
   type IconKey
 } from '../lib/fixed-world';
 import { mulberry32 } from '../lib/mesh';
+import { drawGems, type GemState } from './gems';
 import {
   drawIcon,
   drawFish,
@@ -38,7 +40,9 @@ import {
   drawCommunityEmblem,
   drawWitnessCitadel,
   drawTrollHole,
-  drawSteemRuins
+  drawSteemRuins,
+  drawIslandChip,
+  FERRIS_SPIN
 } from './icons';
 import { drawCritters } from './critters';
 import { drawCoins, type CoinState } from './coins';
@@ -276,6 +280,12 @@ export interface RenderScene {
   helmetState: HelmetState | null;
   /** The nuisance hazards on the bug (goo, wrap, sock envelop). */
   hazards: HazardState | null;
+  /** Colorful collectible gems: eye candy with no economy yet, by design. */
+  gems?: GemState | null;
+  /** Community handles the player has visited; unvisited bubbles rest dim. */
+  visitedCommunities?: ReadonlySet<string> | null;
+  /** How many trophies are mounted on the ferris wheel this board (0-8). */
+  wheelTrophies?: number;
   /**
    * While the bug rides something (the ferris wheel, a witness beam), it is
    * drawn HERE instead of at its physics position. Cosmetic only: the player's
@@ -313,6 +323,9 @@ export interface RenderScene {
     placesLabel?: string;
     places?: number;
     placesTotal?: number;
+    /** Gems collected this board. Eye candy counter, no economy yet. */
+    gemsLabel?: string;
+    gems?: number;
   };
 }
 
@@ -541,8 +554,8 @@ function drawSky(
     g.addColorStop(1, s.c2);
     ctx.strokeStyle = g;
     ctx.lineCap = 'round';
-    ctx.lineWidth = s.w * iz * 0.5;
-    ctx.globalAlpha = 0.08;
+    ctx.lineWidth = s.w * iz * 0.75;
+    ctx.globalAlpha = 0.14;
     ctx.beginPath();
     ctx.moveTo(s.x, s.y);
     ctx.lineTo(x2, y2);
@@ -680,9 +693,13 @@ export function drawScene(scene: RenderScene): void {
   // citadels, one deep teal in the south-west sea. Two gradient fills, drawn
   // under the land; the darkening overlay below dims them a little, which the
   // alphas here already account for.
+  // Four now, and bolder: Bryan asked for braver color in the void
+  // ("a magical colorful star universe"), so the clouds stopped whispering.
   for (const [nx, ny, nr, colIn] of [
-    [6200, -5200, 3400, 'rgba(72, 40, 130, 0.42)'],
-    [-6300, 4400, 3800, 'rgba(16, 70, 96, 0.38)']
+    [6200, -5200, 3400, 'rgba(88, 46, 160, 0.55)'],
+    [-6300, 4400, 3800, 'rgba(18, 92, 126, 0.5)'],
+    [-6900, -5400, 3000, 'rgba(210, 70, 140, 0.34)'],
+    [2000, 7500, 3200, 'rgba(214, 140, 60, 0.3)']
   ] as const) {
     if (nx + nr < vx0 || nx - nr > vx1 || ny + nr < vy0 || ny - nr > vy1) continue;
     const neb = ctx.createRadialGradient(nx, ny, nr * 0.1, nx, ny, nr);
@@ -891,6 +908,21 @@ export function drawScene(scene: RenderScene): void {
   // Scenery with a story; the hover chip and click live in canvas-map.
   if (vis(STEEM_RUINS.x, STEEM_RUINS.y)) {
     drawSteemRuins(ctx, STEEM_RUINS.x, STEEM_RUINS.y, 300, time);
+  }
+
+  // FLOATING ISLAND CHIPS: the planet's shed fragments, occupying the void
+  // pockets Bryan circled. They grow with mapness like the big landmarks so
+  // the pockets read as inhabited from the pulled-out map too.
+  const chipScale = 1 + mapness * 2.6;
+  for (let i = 0; i < ISLAND_CHIPS.length; i++) {
+    const chip = ISLAND_CHIPS[i];
+    if (!vis(chip.x, chip.y)) continue;
+    drawIslandChip(ctx, chip.x, chip.y, chip.top, chip.kind, i, time, chipScale);
+  }
+
+  // GEMS: bold faceted eye candy along the rails and around the chips.
+  if (scene.gems && mapness < 0.75) {
+    drawGems(ctx, scene.gems, time, vis);
   }
 
   // Cubes: transparent, colourful, under the lines for depth.
@@ -1239,6 +1271,7 @@ export function drawScene(scene: RenderScene): void {
 
   // Landmarks: every type its own vector icon; the destination worlds are
   // drawn as structures so arriving feels like arriving somewhere.
+  let ferrisPos: { x: number; y: number; s: number } | null = null;
   for (const n of nodes) {
     if (n.kind !== 'landmark' || !vis(n.x, n.y)) continue;
     const lm = scene.landmarks[n.ref];
@@ -1314,6 +1347,7 @@ export function drawScene(scene: RenderScene): void {
     } else {
       drawIcon(ctx, lm.icon, n.x, n.y, s, col, time, lm.label);
     }
+    if (lm.icon === 'ferris') ferrisPos = { x: n.x, y: n.y, s };
     // THE dAPP STATION'S WINDOWS: real dApp logos looking out. The icon
     // draws the holes (DAPP_WINDOWS, same list); once each dApp account's
     // avatar loads it is clipped into its window. Until then the icon's own
@@ -1343,6 +1377,40 @@ export function drawScene(scene: RenderScene): void {
     }
   }
 
+  // TROPHY GONDOLAS: items brought to the ferris wheel and ridden one full
+  // rotation mount into a gondola and ride with the wheel for the rest of
+  // the 30-minute board (Bryan's Sagrada brief; first trophy is a helmet).
+  if (ferrisPos && scene.wheelTrophies && scene.wheelTrophies > 0) {
+    const R = ferrisPos.s * 2.2;
+    const tr = ferrisPos.s * 0.16;
+    for (let k = 0; k < Math.min(8, scene.wheelTrophies); k++) {
+      const a = time * FERRIS_SPIN + (k / 8) * 6.283;
+      const tx = ferrisPos.x + Math.cos(a) * R;
+      const ty = ferrisPos.y + Math.sin(a) * R;
+      // Earned-light halo on the filled socket.
+      ctx.globalAlpha = 0.55 + Math.sin(time * 2 + k) * 0.2;
+      ctx.strokeStyle = '#FFD9A0';
+      ctx.lineWidth = Math.max(2, tr * 0.35);
+      ctx.beginPath();
+      ctx.arc(tx, ty, tr * 1.5, 0, 6.283);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+      // The mounted helmet: mini dome and collar.
+      ctx.beginPath();
+      ctx.arc(tx, ty - tr * 0.2, tr, Math.PI, 0);
+      ctx.lineTo(tx + tr, ty + tr * 0.35);
+      ctx.lineTo(tx - tr, ty + tr * 0.35);
+      ctx.closePath();
+      ctx.fillStyle = 'rgba(155, 232, 255, 0.5)';
+      ctx.fill();
+      ctx.strokeStyle = '#0e2a36';
+      ctx.lineWidth = Math.max(1.6, tr * 0.22);
+      ctx.stroke();
+      ctx.fillStyle = '#ffd24a';
+      ctx.fillRect(tx - tr * 1.15, ty + tr * 0.35, tr * 2.3, tr * 0.45);
+    }
+  }
+
   // Communities: glowing translucent bubbles of varying size.
   for (const n of nodes) {
     if (n.kind !== 'community' || !vis(n.x, n.y)) continue;
@@ -1352,12 +1420,16 @@ export function drawScene(scene: RenderScene): void {
     // The bubble the bug is standing in brightens, so "you are here" is
     // visible on the map itself and not only in the banner.
     const here = n.ref === scene.activeCommunity;
+    // Dim-until-visited (socket grammar, Bryan's yes on question 4): an
+    // unvisited bubble rests quiet, with a floor so the ring of ten never
+    // looks broken. Visiting lights it for good.
+    const seen = here || !scene.visitedCommunities || scene.visitedCommunities.has(c.handle);
     ctx.fillStyle = here ? '#a8e8ff' : '#7fd8ff';
-    ctx.globalAlpha = here ? 0.3 + beat * 0.12 : 0.1 + beat * 0.05;
+    ctx.globalAlpha = (here ? 0.3 + beat * 0.12 : 0.1 + beat * 0.05) * (seen ? 1 : 0.5);
     ctx.beginPath();
     ctx.arc(n.x, n.y, c.radius, 0, 6.283);
     ctx.fill();
-    ctx.globalAlpha = here ? 1 : 0.5;
+    ctx.globalAlpha = here ? 1 : seen ? 0.5 : 0.42;
     ctx.strokeStyle = here ? '#d8f4ff' : '#7fd8ff';
     ctx.lineWidth = (here ? 4.4 : 2.4) / Math.max(z, 0.08);
     ctx.beginPath();
@@ -1366,7 +1438,10 @@ export function drawScene(scene: RenderScene): void {
     ctx.globalAlpha = 1;
     // An animated emblem chosen from the community's own NAME, so each bubble
     // reads as its own place rather than as one of ten identical circles.
-    drawCommunityEmblem(ctx, c.handle, n.x, n.y, c.radius * 0.82, time);
+    // Unvisited bubbles keep only their avatar: the emblem is earned light.
+    if (seen) {
+      drawCommunityEmblem(ctx, c.handle, n.x, n.y, c.radius * 0.82, time);
+    }
 
     // The community's real avatar floats at the bubble's heart once loaded;
     // a small bright dot till then. Noticeably bigger than pass seven drew it,
@@ -1512,7 +1587,7 @@ function drawCube(ctx: CanvasRenderingContext2D, c: Cube): void {
 function drawHud(scene: RenderScene): void {
   const { ctx, hud } = scene;
   // Scrim behind the readout so the text never fights the world under it.
-  const lines = hud.placesLabel !== undefined ? 5 : 4;
+  const lines = 4 + (hud.placesLabel !== undefined ? 1 : 0) + (hud.gemsLabel !== undefined ? 1 : 0);
   ctx.fillStyle = 'rgba(10, 5, 16, 0.65)';
   ctx.beginPath();
   const sw = 190;
@@ -1539,6 +1614,10 @@ function drawHud(scene: RenderScene): void {
   if (hud.placesLabel !== undefined) {
     ctx.fillStyle = '#b8ffd2';
     ctx.fillText(`${hud.placesLabel} ${hud.places} / ${hud.placesTotal}`, 16, 90);
+  }
+  if (hud.gemsLabel !== undefined) {
+    ctx.fillStyle = '#FF9EDA';
+    ctx.fillText(`${hud.gemsLabel} ${hud.gems}`, 16, 109);
   }
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';

@@ -82,7 +82,30 @@ Deliberately deferred: cliff-band coast strokes (needs coast geometry
 work), harbor silhouettes at ports (needs ports first), expansion seeds
 (edge-fading road, wrap-around orbiter), control-button chrome redesign.
 
+## Pass eighteen addendum (Bryan's playtest verdicts, same day)
+
+Bryan answered YES TO ALL TEN questions below and gave four playtest fixes
+plus one direction correction. Shipped in pass eighteen: rail speed one
+third faster (the one sanctioned edit to frozen movement.ts); the helmet
+dome grown and brightened after "couldn't see it"; the witness beam now
+HOLDS at the crown until the player chooses Skip, then rides home; the
+ferris wheel boards by PROXIMITY in any mode (the park-at-the-node rule
+never fired in real play) and a jump hops out early; the trophy wheel's
+first mount (carry a helmet, ride a full rotation, it rides the wheel for
+the rest of the board); FLOATING ISLAND CHIPS occupying twelve of the
+circled void pockets (ember, teal, lilac, pink and gold tops, huts with lit
+windows and pulsing spires, verified off-land and clear of neighbours);
+collectible GEMS in six bold cuts along rails and around chips with a HUD
+counter; communities now dim-until-visited; nebulae doubled to four and
+everything in the sky turned up ("be more brave and bold with color").
+
+Direction correction recorded: "use the real estate" means OCCUPY the void
+with content, not only sprinkle stars. Chips and gems are the first
+occupants; stations, the Rose Window, and lairs are the backlog's next.
+
 ## Open questions for Bryan (designer recommendation in parentheses)
+
+ALL TEN ANSWERED YES by Bryan on 2026-08-21; kept for the record.
 
 1. Rose Window inner-six pane inventory? (Write Post, Wallet, Sign Up,
    Communities, Notifications, Profile)

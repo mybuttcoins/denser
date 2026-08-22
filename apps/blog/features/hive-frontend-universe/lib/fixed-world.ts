@@ -388,6 +388,35 @@ export function witnessPosts(count: number): WitnessPost[] {
  * (verified alive before this landed), so the one link out of the ruins is
  * the moment the community left them.
  */
+/**
+ * FLOATING ISLAND CHIPS: the planet sheds magic fragments of itself into
+ * the void pockets Bryan circled ("we want to use ALL our area"). Each chip
+ * is a faceted rock taper with a glowing colored top and exactly one
+ * structure; scarce on purpose, because scarcity is the magic. Hand-placed
+ * into the open black spaces, clear of communities, helmets, ruins, the
+ * ring and the keep's approach.
+ */
+export const ISLAND_CHIPS: readonly {
+  x: number;
+  y: number;
+  /** Top surface: ember = a shed fragment of the red land; the rest are crystal. */
+  top: 'ember' | 'teal' | 'lilac' | 'pink' | 'gold';
+  kind: 'hut' | 'spire';
+}[] = [
+  { x: -3900, y: -4900, top: 'teal', kind: 'spire' },
+  { x: 200, y: -5300, top: 'lilac', kind: 'spire' },
+  { x: 3400, y: -4900, top: 'ember', kind: 'hut' },
+  { x: -6300, y: -1800, top: 'pink', kind: 'hut' },
+  { x: -6800, y: 600, top: 'teal', kind: 'spire' },
+  { x: 6300, y: -700, top: 'gold', kind: 'hut' },
+  { x: 5600, y: 1900, top: 'lilac', kind: 'spire' },
+  { x: -800, y: 5600, top: 'pink', kind: 'spire' },
+  { x: -3600, y: 4600, top: 'teal', kind: 'hut' },
+  { x: 2800, y: 5700, top: 'ember', kind: 'hut' },
+  { x: -2900, y: -5300, top: 'ember', kind: 'hut' },
+  { x: 4900, y: -2600, top: 'ember', kind: 'spire' }
+];
+
 export const STEEM_RUINS = {
   x: -6300,
   y: 1800,

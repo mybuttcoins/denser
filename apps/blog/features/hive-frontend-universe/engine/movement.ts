@@ -43,10 +43,11 @@ export interface PlayerState {
 }
 
 export const MOVE = {
-  // 330 keeps junction-to-junction travel at ~1.8s (in the 1.5-2s spec) while
-  // trimming the world-crossing time; measured effective speed on winding
-  // rails is ~72% of nominal.
-  SPEED: 330,
+  // Pass eighteen: 330 to 440, one third faster, changed on Bryan's direct
+  // playtest order ("the player should be able to move a bit faster, maybe
+  // try 1/3 faster"). The ONE sanctioned edit to this frozen file; drift
+  // physics and jump reach are untouched so world gap tuning still holds.
+  SPEED: 440,
   DRIFT_ACC: 360,
   DRIFT_MAX: 360,
   JUMPV: 400,

@@ -810,7 +810,8 @@
       "window": "FINESTRA",
       "tokens": "GETTONI",
       "helmets": "CASCHI",
-      "places": "LUOGHI"
+      "places": "LUOGHI",
+      "gems": "GEMME"
     },
     "map": {
       "hint": "Tocca un luogo per viaggiarci",

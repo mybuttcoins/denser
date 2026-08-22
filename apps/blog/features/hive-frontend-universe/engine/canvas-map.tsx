@@ -55,6 +55,7 @@ import {
   GOO_SLOW,
   type HazardState
 } from './hazards';
+import { createGems, updateGems, type GemState } from './gems';
 import { buildGround } from './ground';
 import { requestAvatar, avatarStats } from './avatars';
 import { getUserAvatarUrl } from '@ui/lib/avatar-utils';
@@ -254,6 +255,12 @@ const Stage = ({ board }: { board: Board }) => {
   const witnessDataRef = useRef(witnesses);
   witnessDataRef.current = witnesses;
 
+  // State-to-ref mirror so the frame loop can see whether the witness card
+  // is open without touching React state mid-frame.
+  useEffect(() => {
+    witnessCardOpenRef.current = clickedWitness !== null;
+  }, [clickedWitness]);
+
   /**
    * The witness stats rows for the beam-visit card. Real numbers from the
    * same get_witnesses_by_vote call that ranks the citadel ring.
@@ -317,8 +324,6 @@ const Stage = ({ board }: { board: Board }) => {
         t: number;
         /** 1 riding up, -1 riding back down. */
         dir: 1 | -1;
-        /** Seconds to pause at the crown, meeting the witness. */
-        dwell: number;
         met: boolean;
         name: string;
         title: string;
@@ -332,6 +337,15 @@ const Stage = ({ board }: { board: Board }) => {
   const beamCooldownRef = useRef(0);
   /** The nuisance hazards: goo, wrap, the sock trip. */
   const hazardsRef = useRef<HazardState | null>(null);
+  /** Colorful collectible gems, reseeded every board. */
+  const gemsRef = useRef<GemState | null>(null);
+  /** Mirrors the clickedWitness React state for the frame loop: while the
+   *  card is open the beam HOLDS the bug at the crown; Skip sends it home. */
+  const witnessCardOpenRef = useRef(false);
+  /** Trophies mounted on the ferris wheel this board (session only). */
+  const wheelTrophiesRef = useRef(0);
+  /** Communities the player has stood in, persisted like PLACES. */
+  const visitedCommunitiesRef = useRef<Set<string> | null>(null);
   const atNodeTick = useRef(-1);
   const inCommunityTick = useRef(-1);
   const mKeyDownAt = useRef(0);
@@ -369,6 +383,16 @@ const Stage = ({ board }: { board: Board }) => {
    */
   const hopWithO2 = () => {
     const p = playerRef.current;
+    // A jump mid-ride: hop OUT of a ferris basket early (no breath earned);
+    // during a beam the light has you, the jump does nothing.
+    const rd = rideRef.current;
+    if (rd) {
+      if (rd.type === 'wheel') {
+        rideRef.current = null;
+        placeAt(p, world.edges, world.incident, rd.node);
+      }
+      return;
+    }
     // A jump while pasta-wrapped tears at the noodles instead of jumping.
     if (hazardsRef.current && fightWrap(hazardsRef.current)) return;
     jump(p, world.edges, inputRef.current);
@@ -405,8 +429,12 @@ const Stage = ({ board }: { board: Board }) => {
     coinsRef.current = createCoins(world, board.counts.customJson, board.windowStart);
     helmetsRef.current = createHelmets();
     hazardsRef.current = createHazards(crittersRef.current.critters.length);
+    gemsRef.current = createGems(world, board.windowStart);
     if (!visitedRef.current) {
       visitedRef.current = new Set(getStorageItem<string[]>('hfu-visited') ?? []);
+    }
+    if (!visitedCommunitiesRef.current) {
+      visitedCommunitiesRef.current = new Set(getStorageItem<string[]>('hfu-visited-communities') ?? []);
     }
 
     // Spawn just inside the mesh beside the Basecamp landmark.
@@ -795,12 +823,13 @@ const Stage = ({ board }: { board: Board }) => {
       if (p.stuck > 0) p.stuck = Math.max(0, p.stuck - dt);
       const hz = hazardsRef.current;
       // The bug parks while the full travel map is open, hands itself over
-      // while a beam has it, and is HELD while a sock envelops it or pasta
-      // wraps it. Slime never holds, it just makes everything sticky: the
-      // movement integrator runs on slowed-down time, movement.ts untouched.
-      const beamRiding = rideRef.current?.type === 'beam';
+      // while ANY ride has it (beam or wheel basket), and is HELD while a
+      // sock envelops it or pasta wraps it. Slime never holds, it just makes
+      // everything sticky: the movement integrator runs on slowed-down time,
+      // movement.ts untouched.
+      const riding = rideRef.current !== null;
       const hazardHeld = hz ? hazardHolds(hz) : false;
-      if (!fullMapRef.current && !beamRiding && !hazardHeld) {
+      if (!fullMapRef.current && !riding && !hazardHeld) {
         const pdt = hz && hz.gooT > 0 ? dt * GOO_SLOW : dt;
         if (p.mode === 'rail') {
           railUpdate(p, edges, incident, inputRef.current, pdt);
@@ -837,6 +866,7 @@ const Stage = ({ board }: { board: Board }) => {
       // need no React state to stay current.
       if (coinsRef.current) updateCoins(coinsRef.current, p, crittersRef.current, factories, TROLL_HOLES, dt, buzz);
       if (helmetsRef.current) updateHelmets(helmetsRef.current, p.x, p.y);
+      if (gemsRef.current) updateGems(gemsRef.current, p.x, p.y);
       requestNearbyAvatars(dt);
       camUpdate(dt);
 
@@ -852,6 +882,18 @@ const Stage = ({ board }: { board: Board }) => {
             setStorageItem('hfu-visited', Array.from(visitedRef.current), StorageTTL.PERMANENT);
           }
         }
+        // Communities light up the same way (dim-until-visited grammar).
+        if (vn?.kind === 'community' && visitedCommunitiesRef.current) {
+          const ch = communityVisualsRef.current[vn.ref]?.handle;
+          if (ch && !visitedCommunitiesRef.current.has(ch)) {
+            visitedCommunitiesRef.current.add(ch);
+            setStorageItem(
+              'hfu-visited-communities',
+              Array.from(visitedCommunitiesRef.current),
+              StorageTTL.PERMANENT
+            );
+          }
+        }
       }
 
       // ---- RIDES: cosmetic transport, physics untouched. ----
@@ -860,25 +902,35 @@ const Stage = ({ board }: { board: Board }) => {
       const wheelRadius = 330; // matches drawFerris: BIG s=150 drawn at R = s * 2.2
       let ride = rideRef.current;
 
-      // Board the wheel by parking at it. One visit, one ride.
-      if (!ride && wheelArmedRef.current && p.atNode === ferrisNode && ferrisNode >= 0) {
-        const n = nodes[ferrisNode];
-        ride = { type: 'wheel', node: ferrisNode, cx: n.x, cy: n.y, startAngle: ts / 1000 * FERRIS_SPIN };
-        rideRef.current = ride;
-        wheelArmedRef.current = false;
+      // Board the wheel by PROXIMITY, in any mode: ride or jump near the
+      // wheel and a basket catches you. Bryan's playtest found the old
+      // park-exactly-at-the-node rule never triggered in real play. Leaving
+      // the area re-arms it, so one visit still means one ride.
+      if (ferrisNode >= 0) {
+        const fn = nodes[ferrisNode];
+        const distWheel = Math.hypot(fn.x - p.x, fn.y - p.y);
+        if (!ride && wheelArmedRef.current && !hazardHeld && distWheel < 430) {
+          ride = { type: 'wheel', node: ferrisNode, cx: fn.x, cy: fn.y, startAngle: (ts / 1000) * FERRIS_SPIN };
+          rideRef.current = ride;
+          wheelArmedRef.current = false;
+        }
+        if (!rideRef.current && distWheel > 580) wheelArmedRef.current = true;
       }
-      if (p.atNode !== ferrisNode) wheelArmedRef.current = true;
 
       if (ride?.type === 'wheel') {
         const angle = (ts / 1000) * FERRIS_SPIN;
-        if (p.atNode !== ferrisNode) {
-          rideRef.current = null; // stepped off early, no breath earned
-        } else if (angle - ride.startAngle >= Math.PI * 2) {
-          // One full rotation: a breath of spare air.
+        if (angle - ride.startAngle >= Math.PI * 2) {
+          // One full rotation: a breath of spare air, and the trophy
+          // ceremony: carrying at least one helmet mounts it in a gondola
+          // for the rest of this board (Bryan's Sagrada wheel).
           if (helmetsRef.current) {
             helmetsRef.current.spareAir++;
             helmetsRef.current.spareFlash = 1.2;
+            if (helmetsRef.current.count > 0 && wheelTrophiesRef.current === 0) {
+              wheelTrophiesRef.current = 1;
+            }
           }
+          placeAt(p, edges, incident, ride.node);
           rideRef.current = null;
         }
       }
@@ -922,7 +974,6 @@ const Stage = ({ board }: { board: Board }) => {
             dur: Math.max(1.6, (glide + climb) / 700),
             t: 0,
             dir: 1,
-            dwell: 1.4,
             met: false,
             name: wt.name,
             title: `${wt.rank}. ${wt.name}`,
@@ -941,10 +992,13 @@ const Stage = ({ board }: { board: Board }) => {
         if (beam.dir === 1 && beam.t >= 1) {
           if (!beam.met) {
             beam.met = true;
+            witnessCardOpenRef.current = true;
             setClickedWitness({ title: beam.title, href: beam.href, stats: witnessStats(beam.name) });
           }
-          beam.dwell -= dt;
-          if (beam.dwell <= 0) beam.dir = -1;
+          // STAY at the crown as long as the card is open. Bryan's playtest
+          // fix: the visit lasts until the player chooses Skip, and only
+          // then does the beam carry them home.
+          if (!witnessCardOpenRef.current) beam.dir = -1;
         } else {
           beam.t = Math.max(0, Math.min(1, beam.t + (dt / beam.dur) * beam.dir));
           if (beam.dir === -1 && beam.t <= 0) {
@@ -1032,6 +1086,9 @@ const Stage = ({ board }: { board: Board }) => {
         helmetState: helmetsRef.current,
         rideOverlay: overlayPos,
         hazards: hazardsRef.current,
+        gems: gemsRef.current,
+        visitedCommunities: visitedCommunitiesRef.current,
+        wheelTrophies: wheelTrophiesRef.current,
         buzz,
         ground,
         activeCommunity: inCommunityTick.current,
@@ -1047,6 +1104,8 @@ const Stage = ({ board }: { board: Board }) => {
           placesLabel: t('hive_frontend_universe.hud.places'),
           places: visitedRef.current?.size ?? 0,
           placesTotal: LANDMARKS.length,
+          gemsLabel: t('hive_frontend_universe.hud.gems'),
+          gems: gemsRef.current?.collected ?? 0,
           tokensLabel: t('hive_frontend_universe.hud.tokens'),
           carried: coinsRef.current?.carried ?? 0,
           banked: coinsRef.current?.banked ?? 0,
