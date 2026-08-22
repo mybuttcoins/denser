@@ -345,8 +345,10 @@ const Stage = ({ board }: { board: Board }) => {
   const witnessCardOpenRef = useRef(false);
   /** Trophies mounted on the ferris wheel this board (session only). */
   const wheelTrophiesRef = useRef<string[]>([]);
-  /** The planning grid overlay, toggled with G. Off by default. */
-  const gridRef = useRef(false);
+  /** The planning grid overlay, toggled with G. ON by default while the
+   *  game is in active build direction (Bryan's call); G hides it for
+   *  recordings. */
+  const gridRef = useRef(true);
   /** Communities the player has stood in, persisted like PLACES. */
   const visitedCommunitiesRef = useRef<Set<string> | null>(null);
   const atNodeTick = useRef(-1);
