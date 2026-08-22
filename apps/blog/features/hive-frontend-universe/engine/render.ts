@@ -294,6 +294,8 @@ export interface RenderScene {
    * by default, deliberately exempt from the no-text-in-world rule.
    */
   debugGrid?: boolean;
+  /** The grid box under the cursor; drawn highlighted with a BIG label. */
+  hoverGridCell?: { ci: number; ri: number } | null;
   /**
    * While the bug rides something (the ferris wheel, a witness beam), it is
    * drawn HERE instead of at its physics position. Cosmetic only: the player's
@@ -1622,6 +1624,29 @@ export function drawScene(scene: RenderScene): void {
           -EXT + ri * CELL + fs * 0.25
         );
       }
+    }
+    // THE HOVERED BOX: highlighted, with its name drawn BIG in the middle
+    // (Bryan has bad eyes; the corner labels are for orientation, this is
+    // for reading). Screen-constant ~40px type at any zoom.
+    if (scene.hoverGridCell) {
+      const { ci, ri } = scene.hoverGridCell;
+      const bx = -EXT + ci * CELL;
+      const by = -EXT + ri * CELL;
+      ctx.fillStyle = 'rgba(140, 220, 255, 0.14)';
+      ctx.fillRect(bx, by, CELL, CELL);
+      ctx.strokeStyle = 'rgba(140, 220, 255, 0.9)';
+      ctx.lineWidth = 3.5 / Math.max(z, 0.04);
+      ctx.strokeRect(bx, by, CELL, CELL);
+      const bigFs = 40 / Math.max(z, 0.04);
+      ctx.font = `800 ${bigFs}px ${MONO}`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      const name = `${String.fromCharCode(65 + ci)}-${ri + 1}`;
+      ctx.lineWidth = bigFs * 0.14;
+      ctx.strokeStyle = 'rgba(4, 3, 10, 0.9)';
+      ctx.strokeText(name, bx + CELL / 2, by + CELL / 2);
+      ctx.fillStyle = '#d6f2ff';
+      ctx.fillText(name, bx + CELL / 2, by + CELL / 2);
     }
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';

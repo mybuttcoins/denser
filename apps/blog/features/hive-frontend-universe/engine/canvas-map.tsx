@@ -349,6 +349,8 @@ const Stage = ({ board }: { board: Board }) => {
    *  game is in active build direction (Bryan's call); G hides it for
    *  recordings. */
   const gridRef = useRef(true);
+  /** The grid box under the cursor; its label draws BIG (bad-eyes rule). */
+  const hoverGridRef = useRef<{ ci: number; ri: number } | null>(null);
   /** Communities the player has stood in, persisted like PLACES. */
   const visitedCommunitiesRef = useRef<Set<string> | null>(null);
   const atNodeTick = useRef(-1);
@@ -710,6 +712,17 @@ const Stage = ({ board }: { board: Board }) => {
       const target = targetAt(e.clientX, e.clientY);
       canvas.style.cursor = target ? 'pointer' : 'default';
       const rect = canvas.getBoundingClientRect();
+      // Which grid box the cursor is over, for the big hover label.
+      if (gridRef.current) {
+        const cam = camRef.current;
+        const gwx = (e.clientX - rect.left - W / 2) / cam.z + cam.x;
+        const gwy = (e.clientY - rect.top - H / 2) / cam.z + cam.y;
+        const ci = Math.floor((gwx + 9100) / 700);
+        const ri = Math.floor((gwy + 9100) / 700);
+        hoverGridRef.current = ci >= 0 && ci < 26 && ri >= 0 && ri < 26 ? { ci, ri } : null;
+      } else {
+        hoverGridRef.current = null;
+      }
       setHover(
         target
           ? {
@@ -722,7 +735,10 @@ const Stage = ({ board }: { board: Board }) => {
       );
     };
     canvas.addEventListener('mousemove', onCanvasMove);
-    const onCanvasLeave = () => setHover(null);
+    const onCanvasLeave = () => {
+      setHover(null);
+      hoverGridRef.current = null;
+    };
     canvas.addEventListener('mouseleave', onCanvasLeave);
 
     const readInput = () => {
@@ -1107,6 +1123,7 @@ const Stage = ({ board }: { board: Board }) => {
         visitedCommunities: visitedCommunitiesRef.current,
         wheelTrophies: wheelTrophiesRef.current,
         debugGrid: gridRef.current,
+        hoverGridCell: hoverGridRef.current,
         buzz,
         ground,
         activeCommunity: inCommunityTick.current,
