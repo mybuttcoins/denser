@@ -344,7 +344,9 @@ const Stage = ({ board }: { board: Board }) => {
    *  card is open the beam HOLDS the bug at the crown; Skip sends it home. */
   const witnessCardOpenRef = useRef(false);
   /** Trophies mounted on the ferris wheel this board (session only). */
-  const wheelTrophiesRef = useRef(0);
+  const wheelTrophiesRef = useRef<string[]>([]);
+  /** The planning grid overlay, toggled with G. Off by default. */
+  const gridRef = useRef(false);
   /** Communities the player has stood in, persisted like PLACES. */
   const visitedCommunitiesRef = useRef<Set<string> | null>(null);
   const atNodeTick = useRef(-1);
@@ -475,6 +477,11 @@ const Stage = ({ board }: { board: Board }) => {
       if (k === 'm' && !keysRef.current[k]) {
         mKeyDownAt.current = Date.now();
         mapHeldRef.current = true; // hold to peek…
+      }
+      // The planning grid: a directing tool ("put it at G-17"), one key to
+      // show, the same key to hide before recording a demo.
+      if (k === 'g' && !keysRef.current[k]) {
+        gridRef.current = !gridRef.current;
       }
       keysRef.current[k] = true;
       if ((k === ' ' || k === 'z') && !fullMapRef.current) hopWithO2();
@@ -922,13 +929,20 @@ const Stage = ({ board }: { board: Board }) => {
         const angle = (ts / 1000) * FERRIS_SPIN;
         if (angle - ride.startAngle >= Math.PI * 2) {
           // One full rotation: a breath of spare air, and the trophy
-          // ceremony: carrying at least one helmet mounts it in a gondola
-          // for the rest of this board (Bryan's Sagrada wheel).
+          // ceremony. ONE new mount per completed ride, from what the bug
+          // is actually carrying: a helmet, then a gem, then a token.
           if (helmetsRef.current) {
             helmetsRef.current.spareAir++;
             helmetsRef.current.spareFlash = 1.2;
-            if (helmetsRef.current.count > 0 && wheelTrophiesRef.current === 0) {
-              wheelTrophiesRef.current = 1;
+          }
+          const mounted = wheelTrophiesRef.current;
+          if (mounted.length < 8) {
+            if ((helmetsRef.current?.count ?? 0) > 0 && !mounted.includes('helmet')) {
+              mounted.push('helmet');
+            } else if ((gemsRef.current?.collected ?? 0) > 0 && !mounted.includes('gem')) {
+              mounted.push('gem');
+            } else if ((coinsRef.current?.carried ?? 0) > 0 && !mounted.includes('token')) {
+              mounted.push('token');
             }
           }
           placeAt(p, edges, incident, ride.node);
@@ -1090,6 +1104,7 @@ const Stage = ({ board }: { board: Board }) => {
         gems: gemsRef.current,
         visitedCommunities: visitedCommunitiesRef.current,
         wheelTrophies: wheelTrophiesRef.current,
+        debugGrid: gridRef.current,
         buzz,
         ground,
         activeCommunity: inCommunityTick.current,

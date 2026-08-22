@@ -285,8 +285,15 @@ export interface RenderScene {
   gems?: GemState | null;
   /** Community handles the player has visited; unvisited bubbles rest dim. */
   visitedCommunities?: ReadonlySet<string> | null;
-  /** How many trophies are mounted on the ferris wheel this board (0-8). */
-  wheelTrophies?: number;
+  /** Trophies mounted on the ferris wheel this board, in mount order. */
+  wheelTrophies?: readonly string[];
+  /**
+   * THE PLANNING GRID: a toggleable overlay (G key) lettering the world
+   * into 700px boxes, columns A-Z west to east, rows 1-26 north to south,
+   * so Bryan can direct work by box ("put it at G-17"). Debug chrome, off
+   * by default, deliberately exempt from the no-text-in-world rule.
+   */
+  debugGrid?: boolean;
   /**
    * While the bug rides something (the ferris wheel, a witness beam), it is
    * drawn HERE instead of at its physics position. Cosmetic only: the player's
@@ -345,6 +352,17 @@ function hash2(a: number, b: number): number {
 
 const MONO = 'ui-monospace, SFMono-Regular, Menlo, monospace';
 const scratch: Vec2 = { x: 0, y: 0 };
+
+/** Planning-grid geometry: 26 lettered columns over the full map extent. */
+const GRID_CELL = 700;
+const GRID_EXT = 9100;
+
+/** The grid box a world point sits in, as its "G-17" style name. */
+export function gridCellName(x: number, y: number): string {
+  const ci = Math.max(0, Math.min(25, Math.floor((x + GRID_EXT) / GRID_CELL)));
+  const ri = Math.max(0, Math.min(25, Math.floor((y + GRID_EXT) / GRID_CELL)));
+  return `${String.fromCharCode(65 + ci)}-${ri + 1}`;
+}
 
 /* ------------------------------ THE SKY ------------------------------ */
 /*
@@ -1380,11 +1398,12 @@ export function drawScene(scene: RenderScene): void {
 
   // TROPHY GONDOLAS: items brought to the ferris wheel and ridden one full
   // rotation mount into a gondola and ride with the wheel for the rest of
-  // the 30-minute board (Bryan's Sagrada brief; first trophy is a helmet).
-  if (ferrisPos && scene.wheelTrophies && scene.wheelTrophies > 0) {
+  // the 30-minute board (Bryan's Sagrada brief). Three mountables so far:
+  // a helmet, a gem, a token; one new mount per completed ride.
+  if (ferrisPos && scene.wheelTrophies && scene.wheelTrophies.length > 0) {
     const R = ferrisPos.s * 2.2;
     const tr = ferrisPos.s * 0.16;
-    for (let k = 0; k < Math.min(8, scene.wheelTrophies); k++) {
+    for (let k = 0; k < Math.min(8, scene.wheelTrophies.length); k++) {
       const a = time * FERRIS_SPIN + (k / 8) * 6.283;
       const tx = ferrisPos.x + Math.cos(a) * R;
       const ty = ferrisPos.y + Math.sin(a) * R;
@@ -1396,19 +1415,47 @@ export function drawScene(scene: RenderScene): void {
       ctx.arc(tx, ty, tr * 1.5, 0, 6.283);
       ctx.stroke();
       ctx.globalAlpha = 1;
-      // The mounted helmet: mini dome and collar.
-      ctx.beginPath();
-      ctx.arc(tx, ty - tr * 0.2, tr, Math.PI, 0);
-      ctx.lineTo(tx + tr, ty + tr * 0.35);
-      ctx.lineTo(tx - tr, ty + tr * 0.35);
-      ctx.closePath();
-      ctx.fillStyle = 'rgba(155, 232, 255, 0.5)';
-      ctx.fill();
-      ctx.strokeStyle = '#0e2a36';
-      ctx.lineWidth = Math.max(1.6, tr * 0.22);
-      ctx.stroke();
-      ctx.fillStyle = '#ffd24a';
-      ctx.fillRect(tx - tr * 1.15, ty + tr * 0.35, tr * 2.3, tr * 0.45);
+      const kind = scene.wheelTrophies[k];
+      if (kind === 'gem') {
+        ctx.beginPath();
+        ctx.moveTo(-tr * 0.6 + tx, -tr * 0.4 + ty);
+        ctx.lineTo(tr * 0.6 + tx, -tr * 0.4 + ty);
+        ctx.lineTo(tr + tx, ty);
+        ctx.lineTo(tx, tr + ty);
+        ctx.lineTo(-tr + tx, ty);
+        ctx.closePath();
+        ctx.fillStyle = '#FF5C8A';
+        ctx.fill();
+        ctx.strokeStyle = '#141019';
+        ctx.lineWidth = Math.max(1.6, tr * 0.22);
+        ctx.stroke();
+      } else if (kind === 'token') {
+        ctx.beginPath();
+        ctx.arc(tx, ty, tr, 0, 6.283);
+        ctx.fillStyle = '#ffd24a';
+        ctx.fill();
+        ctx.strokeStyle = '#8a6d1f';
+        ctx.lineWidth = Math.max(1.6, tr * 0.22);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(tx, ty, tr * 0.55, 0, 6.283);
+        ctx.strokeStyle = '#fff3c9';
+        ctx.stroke();
+      } else {
+        // The helmet: mini dome and collar.
+        ctx.beginPath();
+        ctx.arc(tx, ty - tr * 0.2, tr, Math.PI, 0);
+        ctx.lineTo(tx + tr, ty + tr * 0.35);
+        ctx.lineTo(tx - tr, ty + tr * 0.35);
+        ctx.closePath();
+        ctx.fillStyle = 'rgba(155, 232, 255, 0.5)';
+        ctx.fill();
+        ctx.strokeStyle = '#0e2a36';
+        ctx.lineWidth = Math.max(1.6, tr * 0.22);
+        ctx.stroke();
+        ctx.fillStyle = '#ffd24a';
+        ctx.fillRect(tx - tr * 1.15, ty + tr * 0.35, tr * 2.3, tr * 0.45);
+      }
     }
   }
 
@@ -1534,6 +1581,52 @@ export function drawScene(scene: RenderScene): void {
     ctx.restore();
   }
 
+  // THE PLANNING GRID (G key). Lines every 700 world px across the full
+  // extent, every box lettered in its corner. A directing tool, not art:
+  // it draws over the whole world and under the HUD, and vanishes with one
+  // keypress for demo recordings.
+  if (scene.debugGrid) {
+    const CELL = GRID_CELL;
+    const EXT = GRID_EXT;
+    ctx.strokeStyle = 'rgba(140, 220, 255, 0.3)';
+    ctx.lineWidth = 1.4 / Math.max(z, 0.04);
+    ctx.beginPath();
+    for (let gx = -EXT; gx <= EXT; gx += CELL) {
+      if (gx < vx0 - CELL || gx > vx1 + CELL) continue;
+      ctx.moveTo(gx, Math.max(-EXT, vy0));
+      ctx.lineTo(gx, Math.min(EXT, vy1));
+    }
+    for (let gy = -EXT; gy <= EXT; gy += CELL) {
+      if (gy < vy0 - CELL || gy > vy1 + CELL) continue;
+      ctx.moveTo(Math.max(-EXT, vx0), gy);
+      ctx.lineTo(Math.min(EXT, vx1), gy);
+    }
+    ctx.stroke();
+    const fs = Math.min(240, 11 / Math.max(z, 0.04));
+    ctx.font = `700 ${fs}px ${MONO}`;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillStyle = 'rgba(140, 220, 255, 0.75)';
+    const c0 = Math.max(0, Math.floor((vx0 + EXT) / CELL));
+    const c1 = Math.min(25, Math.floor((vx1 + EXT) / CELL));
+    const r0 = Math.max(0, Math.floor((vy0 + EXT) / CELL));
+    const r1 = Math.min(25, Math.floor((vy1 + EXT) / CELL));
+    // At full map, 676 labels cost real frame time; every second box still
+    // names every region (read the neighbour), so the wide view thins out.
+    const step = c1 - c0 > 15 ? 2 : 1;
+    for (let ci = c0; ci <= c1; ci += step) {
+      for (let ri = r0; ri <= r1; ri += step) {
+        ctx.fillText(
+          `${String.fromCharCode(65 + ci)}-${ri + 1}`,
+          -EXT + ci * CELL + fs * 0.3,
+          -EXT + ri * CELL + fs * 0.25
+        );
+      }
+    }
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+  }
+
   ctx.restore();
 
   // VIGNETTE, screen space, map zoom only: darkened corners pull the eye
@@ -1588,7 +1681,11 @@ function drawCube(ctx: CanvasRenderingContext2D, c: Cube): void {
 function drawHud(scene: RenderScene): void {
   const { ctx, hud } = scene;
   // Scrim behind the readout so the text never fights the world under it.
-  const lines = 4 + (hud.placesLabel !== undefined ? 1 : 0) + (hud.gemsLabel !== undefined ? 1 : 0);
+  const lines =
+    4 +
+    (hud.placesLabel !== undefined ? 1 : 0) +
+    (hud.gemsLabel !== undefined ? 1 : 0) +
+    (scene.debugGrid ? 1 : 0);
   ctx.fillStyle = 'rgba(10, 5, 16, 0.65)';
   ctx.beginPath();
   const sw = 190;
@@ -1619,6 +1716,12 @@ function drawHud(scene: RenderScene): void {
   if (hud.gemsLabel !== undefined) {
     ctx.fillStyle = '#FF9EDA';
     ctx.fillText(`${hud.gemsLabel} ${hud.gems}`, 16, 109);
+  }
+  // With the planning grid on, the HUD names the box the bug stands in, so
+  // "where should this go" can be answered by walking there and reading it.
+  if (scene.debugGrid) {
+    ctx.fillStyle = '#8cdcff';
+    ctx.fillText(`[${gridCellName(scene.player.x, scene.player.y)}]`, 16, 109 + (hud.gemsLabel !== undefined ? 19 : 0));
   }
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
