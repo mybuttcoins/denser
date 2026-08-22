@@ -214,6 +214,9 @@ export function drawIcon(
     case 'sockmount':
       drawSockMount(ctx, x, y, s * 2.2, time);
       break;
+    case 'rosewindow':
+      drawRoseWindow(ctx, x, y, s * 2.2, time);
+      break;
     case 'spaceship': {
       // Small rocket in flight.
       ctx.beginPath();
@@ -2030,6 +2033,120 @@ export function drawIslandChip(
     ctx.beginPath();
     ctx.arc((k - 0.5) * s * 0.5, py, Math.max(1.5, s * 0.07), 0, 6.283);
     ctx.fill();
+  }
+  ctx.restore();
+}
+
+/** Stained glass in six saturated cuts; leading in deep violet-stone. */
+const ROSE_GLASS: readonly string[] = ['#FF5C8A', '#FFC14D', '#4CE0A0', '#5CA8FF', '#B98AFF', '#FF9EDA'];
+const ROSE_LEAD = '#241333';
+
+/**
+ * THE ROSE WINDOW: the link cathedral, from Bryan's Sagrada brief. A great
+ * stained-glass wheel standing on the strait: twelve outer panes, six inner
+ * petals, and a glowing oculus at the heart. The panes shimmer one at a
+ * time, slowly, like sun moving behind glass; the leading keeps it in the
+ * chunky sticker language. Its landing panel rounds up the headline
+ * hive.blog actions, one pane each.
+ */
+export function drawRoseWindow(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  R: number,
+  time: number
+): void {
+  const lw = Math.max(3, R * 0.05);
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.lineJoin = 'round';
+  // A soft holy glow behind the whole window.
+  const halo = ctx.createRadialGradient(0, 0, R * 0.3, 0, 0, R * 1.8);
+  halo.addColorStop(0, 'rgba(255, 217, 160, 0.22)');
+  halo.addColorStop(1, 'rgba(255, 217, 160, 0)');
+  ctx.fillStyle = halo;
+  ctx.beginPath();
+  ctx.arc(0, 0, R * 1.8, 0, 6.283);
+  ctx.fill();
+  // Stone backdrop disc.
+  ctx.beginPath();
+  ctx.arc(0, 0, R * 1.02, 0, 6.283);
+  ctx.fillStyle = '#191024';
+  ctx.fill();
+  ctx.strokeStyle = STICKER_OUTLINE;
+  ctx.lineWidth = lw * 1.4;
+  ctx.stroke();
+  // Twelve outer panes: annular sectors of saturated glass, each breathing
+  // on its own slow clock so the window reads alive, never strobing.
+  const sector = (r0: number, r1: number, a0: number, a1: number) => {
+    ctx.beginPath();
+    ctx.arc(0, 0, r1, a0, a1);
+    ctx.arc(0, 0, r0, a1, a0, true);
+    ctx.closePath();
+  };
+  for (let k = 0; k < 12; k++) {
+    const a0 = (k / 12) * 6.283 - 1.5708;
+    const a1 = ((k + 1) / 12) * 6.283 - 1.5708;
+    const lit = 0.68 + Math.sin(time * 0.6 + k * 1.9) * 0.24;
+    sector(R * 0.6, R * 0.92, a0, a1);
+    ctx.fillStyle = ROSE_GLASS[k % 6];
+    ctx.globalAlpha = lit;
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.strokeStyle = ROSE_LEAD;
+    ctx.lineWidth = lw;
+    ctx.stroke();
+  }
+  // Six inner petals, offset half a step, a shade brighter.
+  for (let k = 0; k < 6; k++) {
+    const a0 = (k / 6) * 6.283 - 1.5708 + 0.26;
+    const a1 = ((k + 1) / 6) * 6.283 - 1.5708 + 0.26;
+    const lit = 0.74 + Math.sin(time * 0.5 + k * 2.4 + 2) * 0.22;
+    sector(R * 0.24, R * 0.54, a0 + 0.04, a1 - 0.04);
+    ctx.fillStyle = ROSE_GLASS[(k * 2 + 1) % 6];
+    ctx.globalAlpha = lit;
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.strokeStyle = ROSE_LEAD;
+    ctx.lineWidth = lw;
+    ctx.stroke();
+  }
+  // The oculus: warm gold heart with the Hive diamond in glass.
+  const beat = 0.7 + Math.sin(time * 1.1) * 0.3;
+  const oc = ctx.createRadialGradient(0, 0, 0, 0, 0, R * 0.2);
+  oc.addColorStop(0, `rgba(255, 240, 200, ${(0.75 + beat * 0.25).toFixed(3)})`);
+  oc.addColorStop(1, 'rgba(255, 194, 77, 0.35)');
+  ctx.beginPath();
+  ctx.arc(0, 0, R * 0.2, 0, 6.283);
+  ctx.fillStyle = oc;
+  ctx.fill();
+  ctx.strokeStyle = ROSE_LEAD;
+  ctx.lineWidth = lw;
+  ctx.stroke();
+  const d = R * 0.1;
+  ctx.beginPath();
+  ctx.moveTo(0, -d);
+  ctx.lineTo(d * 0.85, 0);
+  ctx.lineTo(0, d);
+  ctx.lineTo(-d * 0.85, 0);
+  ctx.closePath();
+  ctx.fillStyle = '#E31337';
+  ctx.fill();
+  ctx.strokeStyle = ROSE_LEAD;
+  ctx.lineWidth = lw * 0.7;
+  ctx.stroke();
+  // Two stone feet planting it on the bridge.
+  ctx.fillStyle = '#241333';
+  ctx.strokeStyle = STICKER_OUTLINE;
+  ctx.lineWidth = lw;
+  for (const side of [-1, 1]) {
+    ctx.beginPath();
+    ctx.moveTo(side * R * 0.55, R * 0.82);
+    ctx.lineTo(side * R * 0.8, R * 1.28);
+    ctx.lineTo(side * R * 0.32, R * 1.28);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
   }
   ctx.restore();
 }

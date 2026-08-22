@@ -792,7 +792,8 @@
       "nothing_here": "Qui non c’è ancora nulla. Questo posto aprirà più avanti.",
       "real_games": "Giochi reali su Hive",
       "dapps": "dApp dell universo Hive",
-      "buzzing": "Oggi ronza: i token qui valgono doppio"
+      "buzzing": "Oggi ronza: i token qui valgono doppio",
+      "rose_window": "I pannelli del Rosone"
     },
     "landmarks": {
       "search": "Cerca",
@@ -803,7 +804,8 @@
       "healthchecker": "Healthchecker",
       "json_keep": "Emperor J SON",
       "mount_socko": "Mount Socko",
-      "steem_ruins": "Rovine di Steem"
+      "steem_ruins": "Rovine di Steem",
+      "rose_window": "Rosone"
     },
     "hud": {
       "houses": "CASE",

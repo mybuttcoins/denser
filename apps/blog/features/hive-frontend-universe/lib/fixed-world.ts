@@ -152,6 +152,7 @@ export type IconKey =
   | 'blocks'
   | 'jsonboss'
   | 'sockmount'
+  | 'rosewindow'
   | 'pulse'
   | 'gate';
 
@@ -233,7 +234,13 @@ export const LANDMARKS: readonly Landmark[] = [
   // Mount Socko stands on the very NORTH TIP of the logo: a sock-shaped
   // mountain, visible from the pulled-out map, where a Socko-enveloped bug is
   // flash-taken. Pure lore, no page behind it; the trip itself is the toll.
-  { id: 'mount_socko', kind: 'none', path: '', labelKey: 'hive_frontend_universe.landmarks.mount_socko', category: 'info', icon: 'sockmount', place: { in: 'body', x: -1130, y: -4950 }, big: true }
+  { id: 'mount_socko', kind: 'none', path: '', labelKey: 'hive_frontend_universe.landmarks.mount_socko', category: 'info', icon: 'sockmount', place: { in: 'body', x: -1130, y: -4950 }, big: true },
+  // THE ROSE WINDOW: the link cathedral, standing on the southern bridge of
+  // the wider channel (the widest strait cell, dead center of the map). A
+  // stained-glass wheel that rounds up the headline hive.blog actions in
+  // one place; its panel lists them, its oculus opens the home page. The
+  // ferris wheel's twin: one hot wheel for play, one cool wheel for use.
+  { id: 'rose_window', kind: 'internal', path: '/', labelKey: 'hive_frontend_universe.landmarks.rose_window', category: 'social', icon: 'rosewindow', place: { in: 'body', x: -536, y: 2127 }, big: true }
 ];
 
 /**
@@ -415,6 +422,21 @@ export const ISLAND_CHIPS: readonly {
   { x: 2800, y: 5700, top: 'ember', kind: 'hut' },
   { x: -2900, y: -5300, top: 'ember', kind: 'hut' },
   { x: 4900, y: -2600, top: 'ember', kind: 'spire' }
+];
+
+/**
+ * THE ROSE WINDOW'S PANES: the headline hive.blog actions its panel rounds
+ * up, one pane each. The designer's list had Notifications and Profile, but
+ * those routes depend on being logged in as a specific account; Search and
+ * FAQ stand in so every pane leads somewhere real for every visitor.
+ */
+export const ROSE_WINDOW_PANES: readonly { labelKey: string; kind: LandmarkKind; path: string }[] = [
+  { labelKey: 'hive_frontend_universe.landmarks.write_post', kind: 'internal', path: '/submit.html' },
+  { labelKey: 'hive_frontend_universe.landmarks.wallet', kind: 'wallet', path: '/' },
+  { labelKey: 'navigation.main_nav_bar.sign_up', kind: 'external', path: 'https://signup.hive.io/' },
+  { labelKey: 'hive_frontend_universe.landmarks.communities', kind: 'internal', path: '/communities' },
+  { labelKey: 'hive_frontend_universe.landmarks.search', kind: 'internal', path: '/search' },
+  { labelKey: 'navigation.sidebar.faq', kind: 'internal', path: '/faq.html' }
 ];
 
 export const STEEM_RUINS = {

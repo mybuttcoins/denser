@@ -30,6 +30,7 @@ import {
   ARCADE_GAMES,
   DAPP_DIRECTORY,
   STEEM_RUINS,
+  ROSE_WINDOW_PANES,
   witnessPosts
 } from '../lib/fixed-world';
 import { mulberry32 } from '../lib/mesh';
@@ -1256,12 +1257,19 @@ const Stage = ({ board }: { board: Board }) => {
               ? ARCADE_GAMES.map((g) => ({ label: g.name, href: g.url }))
               : atLandmark.id === 'our_dapps' || atLandmark.id === 'hive_dapps'
                 ? DAPP_DIRECTORY.map((d) => ({ label: d.name, href: d.url }))
-                : undefined
+                : atLandmark.id === 'rose_window'
+                  ? ROSE_WINDOW_PANES.map((pane) => ({
+                      label: t(pane.labelKey),
+                      href: landmarkHref(pane.kind, pane.path) ?? ''
+                    })).filter((l) => l.href !== '')
+                  : undefined
           }
           linksLabel={
             atLandmark.id === 'arcade'
               ? t('hive_frontend_universe.panel.real_games')
-              : t('hive_frontend_universe.panel.dapps')
+              : atLandmark.id === 'rose_window'
+                ? t('hive_frontend_universe.panel.rose_window')
+                : t('hive_frontend_universe.panel.dapps')
           }
           note={
             buzz && atLandmark.id === buzz.landmarkId

@@ -171,6 +171,7 @@ const BIG_SIZE: Partial<Record<IconKey, number>> = {
   jsonboss: 165,
   launchpad: 140,
   sockmount: 145,
+  rosewindow: 140,
   tent: 350
 };
 

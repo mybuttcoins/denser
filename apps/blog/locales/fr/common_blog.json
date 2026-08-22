@@ -792,7 +792,8 @@
       "nothing_here": "Rien ici pour le moment. Cet endroit ouvrira plus tard.",
       "real_games": "Vrais jeux sur Hive",
       "dapps": "dApps de l univers Hive",
-      "buzzing": "Ca bourdonne aujourd hui : les jetons comptent double ici"
+      "buzzing": "Ca bourdonne aujourd hui : les jetons comptent double ici",
+      "rose_window": "Les panneaux de la Rosace"
     },
     "landmarks": {
       "search": "Rechercher",
@@ -803,7 +804,8 @@
       "healthchecker": "Healthchecker",
       "json_keep": "Emperor J SON",
       "mount_socko": "Mount Socko",
-      "steem_ruins": "Ruines de Steem"
+      "steem_ruins": "Ruines de Steem",
+      "rose_window": "Rosace"
     },
     "hud": {
       "houses": "MAISONS",

@@ -798,7 +798,8 @@
       "nothing_here": "Здесь пока ничего нет. Это место откроется позже.",
       "real_games": "Настоящие игры на Hive",
       "dapps": "dApps вселенной Hive",
-      "buzzing": "Сегодня жужжит: токены здесь считаются вдвойне"
+      "buzzing": "Сегодня жужжит: токены здесь считаются вдвойне",
+      "rose_window": "Витражи Окна-розы"
     },
     "landmarks": {
       "search": "Поиск",
@@ -809,7 +810,8 @@
       "healthchecker": "Healthchecker",
       "json_keep": "Emperor J SON",
       "mount_socko": "Mount Socko",
-      "steem_ruins": "Руины Steem"
+      "steem_ruins": "Руины Steem",
+      "rose_window": "Окно-роза"
     },
     "hud": {
       "houses": "ДОМА",

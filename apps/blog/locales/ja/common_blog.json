@@ -792,7 +792,8 @@
       "nothing_here": "ここにはまだ何もありません。後で開きます。",
       "real_games": "Hiveの実際のゲーム",
       "dapps": "Hiveユニバースのアプリ",
-      "buzzing": "本日ブンブン: ここのトークンは2倍"
+      "buzzing": "本日ブンブン: ここのトークンは2倍",
+      "rose_window": "バラ窓のパネル"
     },
     "landmarks": {
       "search": "検索",
@@ -803,7 +804,8 @@
       "healthchecker": "Healthchecker",
       "json_keep": "Emperor J SON",
       "mount_socko": "Mount Socko",
-      "steem_ruins": "Steemの廃墟"
+      "steem_ruins": "Steemの廃墟",
+      "rose_window": "バラ窓"
     },
     "hud": {
       "houses": "家",

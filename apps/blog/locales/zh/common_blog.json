@@ -792,7 +792,8 @@
       "nothing_here": "这里还没有内容,稍后开放。",
       "real_games": "Hive 上的真实游戏",
       "dapps": "Hive 宇宙的应用",
-      "buzzing": "今日嗡嗡: 这里的代币加倍"
+      "buzzing": "今日嗡嗡: 这里的代币加倍",
+      "rose_window": "玫瑰窗的窗格"
     },
     "landmarks": {
       "search": "搜索",
@@ -803,7 +804,8 @@
       "healthchecker": "Healthchecker",
       "json_keep": "Emperor J SON",
       "mount_socko": "Mount Socko",
-      "steem_ruins": "Steem废墟"
+      "steem_ruins": "Steem废墟",
+      "rose_window": "玫瑰窗"
     },
     "hud": {
       "houses": "房屋",

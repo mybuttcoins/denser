@@ -839,7 +839,8 @@
       "nothing_here": "لا يوجد شيء هنا بعد. سيفتح هذا المكان لاحقًا.",
       "real_games": "ألعاب حقيقية على Hive",
       "dapps": "تطبيقات عالم Hive",
-      "buzzing": "يطن اليوم: الرموز هنا تحسب مضاعفة"
+      "buzzing": "يطن اليوم: الرموز هنا تحسب مضاعفة",
+      "rose_window": "ألواح النافذة الوردية"
     },
     "landmarks": {
       "search": "بحث",
@@ -850,7 +851,8 @@
       "healthchecker": "Healthchecker",
       "json_keep": "Emperor J SON",
       "mount_socko": "Mount Socko",
-      "steem_ruins": "أطلال Steem"
+      "steem_ruins": "أطلال Steem",
+      "rose_window": "النافذة الوردية"
     },
     "hud": {
       "houses": "المنازل",

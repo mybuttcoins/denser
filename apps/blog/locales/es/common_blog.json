@@ -792,7 +792,8 @@
       "nothing_here": "Aquí no hay nada todavía. Este lugar abrirá más adelante.",
       "real_games": "Juegos reales en Hive",
       "dapps": "dApps del universo Hive",
-      "buzzing": "Hoy zumba: los tokens aqui cuentan doble"
+      "buzzing": "Hoy zumba: los tokens aqui cuentan doble",
+      "rose_window": "Los paneles del Roseton"
     },
     "landmarks": {
       "search": "Buscar",
@@ -803,7 +804,8 @@
       "healthchecker": "Healthchecker",
       "json_keep": "Emperor J SON",
       "mount_socko": "Mount Socko",
-      "steem_ruins": "Ruinas de Steem"
+      "steem_ruins": "Ruinas de Steem",
+      "rose_window": "Roseton"
     },
     "hud": {
       "houses": "CASAS",

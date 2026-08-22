@@ -797,7 +797,8 @@
       "nothing_here": "Tu jeszcze nic nie ma. To miejsce otworzy się później.",
       "real_games": "Prawdziwe gry na Hive",
       "dapps": "dAppy uniwersum Hive",
-      "buzzing": "Dzis buczy: tokeny licza sie tu podwojnie"
+      "buzzing": "Dzis buczy: tokeny licza sie tu podwojnie",
+      "rose_window": "Tafle Rozety"
     },
     "landmarks": {
       "search": "Szukaj",
@@ -808,7 +809,8 @@
       "healthchecker": "Healthchecker",
       "json_keep": "Emperor J SON",
       "mount_socko": "Mount Socko",
-      "steem_ruins": "Ruiny Steem"
+      "steem_ruins": "Ruiny Steem",
+      "rose_window": "Rozeta"
     },
     "hud": {
       "houses": "DOMY",
